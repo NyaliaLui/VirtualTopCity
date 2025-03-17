@@ -1,0 +1,26 @@
+{
+  "name": "virtualtopcity",
+  "version": "1.0.0",
+  "description": "A simple web app that put Topeka, KS into Virtual Reality",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NyaliaLui/VirtualTopCity.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/NyaliaLui/VirtualTopCity/issues"
+  },
+  "homepage": "https://github.com/NyaliaLui/VirtualTopCity#readme",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "three": "^0.174.0"
+  }
+}
