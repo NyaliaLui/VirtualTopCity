@@ -1,109 +1,75 @@
-import Image from "next/image";
+'use client';
 
-import nextSvg from "../public/ks-prarie.jpg";
-import vercelSvg from "../public/vercel.svg";
-import fileSvg from "../public/file.svg";
-import windowSvg from "../public/window.svg";
-import globeSvg from "../public/globe.svg";
+import { useEffect, useRef } from 'react';
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src={nextSvg}
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const viewport = useRef<HTMLDivElement>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src={vercelSvg}
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
+  useEffect(() => {
+    const scene = new THREE.Scene();
+    const fov = 75;
+    const aspect =  window.innerWidth / window.innerHeight;
+    const near = 0.1;
+    const far = 1000;
+    const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+    camera.position.set(145, 96, -180);
+    
+    const renderer = new THREE.WebGLRenderer();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+
+    function animate() {
+    
+      renderer.render( scene, camera );
+    
+    }
+    renderer.setAnimationLoop(animate);
+    
+    if (viewport.current) {
+      viewport.current.appendChild(renderer.domElement);
+      const controls = new OrbitControls(camera, viewport.current);
+      controls.target.set(0, 5, 0);
+      controls.update();
+      
+      const skyColor = 0xB1E1FF;  // light blue
+      const groundColor = 0xB97A20;  // brownish orange
+      const intensity = 1;
+      const hemisphereLight = new THREE.HemisphereLight(skyColor, groundColor, intensity);
+      scene.add(hemisphereLight);
+      
+      const color = 0xFFFFFF;
+      const sun = new THREE.DirectionalLight(color, intensity);
+      sun.position.set(0, 235, 0);
+      sun.target.position.set(-13, 2, -6);
+      scene.add(sun);
+      scene.add(sun.target);
+      
+      function updateSun() {
+        sun.target.updateMatrixWorld();
+      }
+      updateSun();
+      
+      const loader = new GLTFLoader();
+      //TODO(@NyaliaLui): Hardcoding OR sending the full path over the network is a vulnerability. 
+      //                  Must find a way to call ThreeJS with the GLB path like a function. Perhaps
+      //                  move away from the module-like JS file?
+      loader.load('./Building-GLTF.glb', (gltf) => {
+      
+        scene.add(gltf.scene);
+      
+      }, undefined, (err) => {
+      
+        console.error(`GLTF Load err: ${err}`);
+      
+      } );
+    }
+  }, []);
+
+  return (
+      <main>
+        <div ref={viewport}></div>
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src={fileSvg}
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src={windowSvg}
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src={globeSvg}
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
   );
 }
