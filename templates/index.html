@@ -1,13 +1,27 @@
+<!-- templates/index.html -->
+<!-- This is the main HTML file for the Three.js scene. -->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Three.js with Flask</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flask & Three.js with Import Map</title>
     <style>
-        body { margin: 0; overflow: hidden; }
-        canvas { display: block; }
+        /* Basic CSS to make the canvas fill the entire page */
+        body {
+            margin: 0;
+            overflow: hidden; /* Hide scrollbars */
+        }
+        canvas {
+            display: block; /* Remove any default spacing */
+        }
     </style>
+</head><body>
 
+    <!-- This script tag defines the import map, which tells the browser -->
+    <!-- where to find the Three.js modules. This avoids the need for a -->
+    <!-- build step like Webpack or Vite for simple projects. -->
     <script type="importmap">
     {
         "imports": {
@@ -16,8 +30,10 @@
         }
     }
     </script>
-</head>
-<body>
+
+    <!-- The main JavaScript file is imported as a module. -->
+    <!-- The `url_for` is a Flask function that generates the correct URL -->
+    <!-- for the static file. -->
     <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
-</body>
-</html>
+
+</body></html>
