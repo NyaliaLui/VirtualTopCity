@@ -1,266 +1,444 @@
-// static/js/main.js
-// This file contains all the Three.js logic for the scene.
-
-// Import necessary modules from Three.js via the import map
+// Import necessary modules from Three.js via the importmap
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { Sky } from 'three/addons/objects/Sky.js';
+import { Water } from 'three/addons/objects/Water.js';
 
-// --- Scene, Camera, and Renderer Setup ---
+// --- BASIC SETUP ---
+const W = 'w';
+const A = 'a';
+const S = 's';
+const D = 'd';
+const SHIFT = 'shift';
+const DIRECTIONS = [W, A, S, D];
+const idle = 'idle';
+const walk = 'walk';
+const run = 'run';
+const roadWidth = 10;
+const mapDims = {width: 500, height: 500};
+const gameBounds = {right: -100, left: 100, top: -100, bottom: 100};
 
-// 1. Scene
-// The scene is the container for all objects, lights, and cameras.
+class KeyDisplay {
+
+    map = new Map();
+
+    constructor() {
+        const w = document.createElement("div");
+        const a = document.createElement("div");
+        const s = document.createElement("div");
+        const d = document.createElement("div");
+        const shift = document.createElement("div");
+
+        this.map.set(W, w);
+        this.map.set(A, a);
+        this.map.set(S, s);
+        this.map.set(D, d);
+        this.map.set(SHIFT, shift);
+
+        this.map.forEach( (v, k) => {
+            v.style.color = 'blue';
+            v.style.fontSize = '50px';
+            v.style.fontWeight = '800';
+            v.style.position = 'absolute';
+            v.textContent = k;
+        })
+
+        this.updatePosition();
+
+        this.map.forEach( (v, _) => {
+            document.body.append(v);
+        });
+    }
+
+    updatePosition() {
+        this.map.get(W).style.top = `${window.innerHeight - 150}px`;
+        this.map.get(A).style.top = `${window.innerHeight - 100}px`;
+        this.map.get(S).style.top = `${window.innerHeight - 100}px`;
+        this.map.get(D).style.top = `${window.innerHeight - 100}px`;
+        this.map.get(SHIFT).style.top = `${window.innerHeight - 100}px`;
+
+        this.map.get(W).style.left = `${300}px`;
+        this.map.get(A).style.left = `${200}px`;
+        this.map.get(S).style.left = `${300}px`;
+        this.map.get(D).style.left = `${400}px`;
+        this.map.get(SHIFT).style.left = `${50}px`;
+    }
+
+    down (key) {
+        if (this.map.get(key.toLowerCase())) {
+            this.map.get(key.toLowerCase()).style.color = 'red';
+        }
+    }
+
+    up (key) {
+        if (this.map.get(key.toLowerCase())) {
+            this.map.get(key.toLowerCase()).style.color = 'blue';
+        }
+    }
+
+}
+
+class CharacterControls {
+
+    model;
+    mixer;
+    animationsMap = new Map(); // Walk, Run, Idle
+    orbitControl;
+    camera;
+
+    // state
+    toggleRun = false;
+    currentAction;
+    
+    // temporary data
+    walkDirection = new THREE.Vector3();
+    rotateAngle = new THREE.Vector3(0, -1, 0);
+    rotateQuarternion = new THREE.Quaternion();
+    cameraTarget = new THREE.Vector3();
+    
+    // constants
+    fadeDuration = 0.2;
+    runVelocity = 25;
+    walkVelocity = 10;
+
+    constructor(model, mixer, animationsMap, orbitControl, camera, currentAction) {
+        this.model = model;
+        this.mixer = mixer;
+        this.animationsMap = animationsMap;
+        this.currentAction = currentAction;
+        this.animationsMap.forEach((value, key) => {
+            if (key == currentAction) {
+                value.play();
+            }
+        })
+        this.orbitControl = orbitControl;
+        this.camera = camera;
+        this.updateCameraTarget(0,0);
+    }
+
+    switchRunToggle() {
+        this.toggleRun = !this.toggleRun;
+    }
+
+    update(delta, keyState) {
+        const directionPressed = DIRECTIONS.some(key => keyState[key] == true);
+
+        let play = '';
+        if (directionPressed && this.toggleRun) {
+            play = run;
+        } else if (directionPressed) {
+            play = walk;
+        } else {
+            play = idle;
+        }
+
+        if (this.currentAction != play) {
+            const toPlay = this.animationsMap.get(play);
+            const current = this.animationsMap.get(this.currentAction);
+
+            current.fadeOut(this.fadeDuration);
+            toPlay.reset().fadeIn(this.fadeDuration).play();
+
+            this.currentAction = play;
+        }
+
+        this.mixer.update(delta);
+
+        if (this.currentAction == run || this.currentAction == walk) {
+            // calculate towards camera direction
+            let angleYCameraDirection = Math.atan2(
+                    (this.camera.position.x - this.model.position.x), 
+                    (this.camera.position.z - this.model.position.z))
+            // diagonal movement angle offset
+            let directionOffset = this.directionOffset(keyState);
+
+            // rotate model
+            this.rotateQuarternion.setFromAxisAngle(this.rotateAngle, angleYCameraDirection + directionOffset);
+            this.model.quaternion.rotateTowards(this.rotateQuarternion, 0.2);
+
+            // calculate direction
+            this.camera.getWorldDirection(this.walkDirection);
+            this.walkDirection.y = 0;
+            this.walkDirection.normalize();
+            this.walkDirection.applyAxisAngle(this.rotateAngle, directionOffset);
+
+            // run/walk velocity
+            const velocity = this.currentAction == run ? this.runVelocity : this.walkVelocity;
+
+            // move model & camera
+            const moveX = this.walkDirection.x * velocity * delta;
+            const moveZ = this.walkDirection.z * velocity * delta;
+            this.model.position.x += moveX;
+            this.model.position.z += moveZ;
+            this.updateCameraTarget(moveX, moveZ);
+        }
+    }
+
+    updateCameraTarget(moveX, moveZ) {
+        // move camera
+        this.camera.position.x += moveX;
+        this.camera.position.z += moveZ;
+
+        // update camera target
+        this.cameraTarget.x = this.model.position.x;
+        this.cameraTarget.y = this.model.position.y + 1;
+        this.cameraTarget.z = this.model.position.z;
+        this.orbitControl.target = this.cameraTarget;
+    }
+
+    directionOffset(keyState) {
+        let directionOffset = 0; // w
+
+        if (keyState[W]) {
+            if (keyState[A]) {
+                directionOffset = -Math.PI / 4; // w+a
+            } else if (keyState[D]) {
+                directionOffset = Math.PI / 4; // w+d
+            }
+        } else if (keyState[S]) {
+            if (keyState[A]) {
+                directionOffset = -Math.PI / 4 - Math.PI / 2; // s+a
+            } else if (keyState[D]) {
+                directionOffset = Math.PI / 4 + Math.PI / 2; // s+d
+            } else {
+                directionOffset = Math.PI; // s
+            }
+        } else if (keyState[A]) {
+            directionOffset = - Math.PI / 2; // a
+        } else if (keyState[D]) {
+            directionOffset = Math.PI / 2; // d
+        }
+
+        return directionOffset;
+    }
+}
+
+// Scene: This is the container for all our 3D objects.
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb); // A sky-blue background
+// The background will be set by the skybox loader later.
 
-// 2. Camera
-// A perspective camera mimics the way the human eye sees.
-// Arguments: FOV, aspect ratio, near clip, far clip
+// Camera: This defines our point of view.\
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(4, 8, 15); // Move the camera back and up further to see the taller building
+camera.position.set(5, 5, 0); // Adjusted camera position for a better view
 
-// 3. Renderer
-// The renderer is responsible for drawing the scene onto the canvas.
+// Renderer: This is what draws the scene onto the canvas.
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
-// Append the renderer's canvas element to the HTML body
+// Enable shadow mapping in the renderer
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Softer shadows
 document.body.appendChild(renderer.domElement);
 
+// --- CONTROLS ---
 
-// --- Lighting ---
+// OrbitControls: Allows the camera to be manipulated with the mouse.
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.minDistance = 5;
+controls.maxDistance = 15;
+controls.enablePan = false;
+controls.maxPolarAngle = Math.PI / 2 - 0.05;
+controls.update();
 
-// Add some lighting to the scene to make the building visible.
-// 1. Ambient Light: Illuminates all objects in the scene from all directions.
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-scene.add(ambientLight);
-
-// 2. Directional Light: Emits light in a specific direction, like the sun.
-const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-directionalLight.position.set(10, 15, 5);
-scene.add(directionalLight);
-
-
-// --- Objects in the Scene ---
-
-// 1. Texture Loader
-// The texture loader is used to load the brick image.
 const textureLoader = new THREE.TextureLoader();
-const brickTexture = textureLoader.load(
-    // A seamless brick texture from the Three.js examples
-    'https://threejs.org/examples/textures/brick_diffuse.jpg',
-    (texture) => {
-        // This ensures the texture repeats across the surface
-        texture.wrapS = THREE.RepeatWrapping;
-        texture.wrapT = THREE.RepeatWrapping;
-        // Adjust how many times the texture repeats
-        texture.repeat.set(3, 6); // Repeat texture more on the Y axis
+
+const waterHeight = 100;
+const waterGeometry = new THREE.PlaneGeometry(mapDims.width, waterHeight);
+const water = new Water(
+    waterGeometry,
+    {
+        textureWidth: mapDims.width,
+        textureHeight: waterHeight,
+        waterNormals: textureLoader.load('/static/textures/waternormals.jpg', (texture) => {
+            texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+        }),
+        sunDirection: new THREE.Vector3(),
+        sunColor: 0xffffff,
+        waterColor: 0x001e0f,
+        distortionScale: 3.7,
+        fog: scene.fog !== undefined
     }
 );
+water.rotation.x = - Math.PI / 2;
+water.position.z = gameBounds.left;
+scene.add(water);
 
+let sun = new THREE.Vector3();
+const sky = new Sky();
+sky.scale.setScalar(10000);
+scene.add(sky);
 
-// 2. Building Geometry and Material
-// Create a box geometry with dimensions that resemble a building. The height is now 12.
-const buildingGeometry = new THREE.BoxGeometry(5, 12, 5);
-// Apply the loaded brick texture to the material.
-const buildingMaterial = new THREE.MeshStandardMaterial({
-    map: brickTexture,
-    // Add a normal map for more realistic surface detail
-    normalMap: textureLoader.load('https://threejs.org/examples/textures/brick_roughness.jpg', (texture) => {
-        texture.wrapS = THREE.RepeatWrapping;
-        texture.wrapT = THREE.RepeatWrapping;
-        texture.repeat.set(3, 6); // Repeat texture more on the Y axis
-    }),
-    roughness: 0.8,
-    metalness: 0.1
-});
+const skyUniforms = sky.material.uniforms;
 
-// 3. Building Mesh
-const building = new THREE.Mesh(buildingGeometry, buildingMaterial);
-// Position the building so its base is at y=0
-building.position.y = 6;
-scene.add(building);
+skyUniforms[ 'turbidity' ].value = 10;
+skyUniforms[ 'rayleigh' ].value = 2;
+skyUniforms[ 'mieCoefficient' ].value = 0.005;
+skyUniforms[ 'mieDirectionalG' ].value = 0.8;
 
-// --- Building Features ---
+const parameters = {
+    elevation: 2,
+    azimuth: 180
+};
 
-// We will create the features and add them as children of the main building mesh.
-// This ensures that if the building moves, its features move with it.
-// Positions will be relative to the building's center.
+const pmremGenerator = new THREE.PMREMGenerator( renderer );
+const sceneEnv = new THREE.Scene();
 
-// 4. Metallic Plate
-const plateGeometry = new THREE.BoxGeometry(5.1, 0.5, 0.1); // Slightly wider than the building
-const plateMaterial = new THREE.MeshStandardMaterial({
-    color: 0xcccccc,
-    metalness: 0.9,
-    roughness: 0.2
-});
-const plate = new THREE.Mesh(plateGeometry, plateMaterial);
-// Position it halfway up (y=0 in local space) and on the front face (z = building_depth/2)
-plate.position.set(0, 0, 2.55);
-building.add(plate);
+let renderTarget;
 
-// 5. Door
-const doorGeometry = new THREE.BoxGeometry(1.2, 2.5, 0.1);
-const doorMaterial = new THREE.MeshStandardMaterial({ color: 0x3d2817 }); // Dark wood color
-const door = new THREE.Mesh(doorGeometry, doorMaterial);
-// Position it at the bottom center of the building's front face.
-// Building base is at y=-6 (local space). Door center y = -6 + (door_height/2) = -4.75
-door.position.set(0, -4.75, 2.55);
-building.add(door);
+function updateSun() {
 
-// 6. Windows
-// Window height is 3/4 of the door's height (2.5 * 0.75 = 1.875)
-const windowWidth = 1;
-const windowHeight = 1.875;
-const windowGeometry = new THREE.BoxGeometry(windowWidth, windowHeight, 0.1);
-const windowMaterial = new THREE.MeshStandardMaterial({
-    color: 0xadd8e6, // Light blue
-    transparent: true,
-    opacity: 0.6
-});
-const frameMaterial = new THREE.MeshStandardMaterial({ color: 0x222222 });
-const frameThickness = 0.07;
+    const phi = THREE.MathUtils.degToRad( 90 - parameters.elevation );
+    const theta = THREE.MathUtils.degToRad( parameters.azimuth );
 
-// Helper function to create a simple 4-sided frame for a window
-function createStandardFrame(windowMesh, width, height) {
-    const frameGroup = new THREE.Group();
-    const topBottomFrameGeom = new THREE.BoxGeometry(width + frameThickness * 2, frameThickness, 0.11);
-    const sideFrameGeom = new THREE.BoxGeometry(frameThickness, height, 0.11);
+    sun.setFromSphericalCoords( 1, phi, theta );
 
-    const topFrame = new THREE.Mesh(topBottomFrameGeom, frameMaterial);
-    topFrame.position.y = height / 2 + frameThickness / 2;
-    frameGroup.add(topFrame);
+    sky.material.uniforms[ 'sunPosition' ].value.copy( sun );
+    water.material.uniforms[ 'sunDirection' ].value.copy( sun ).normalize();
 
-    const bottomFrame = new THREE.Mesh(topBottomFrameGeom, frameMaterial);
-    bottomFrame.position.y = -height / 2 - frameThickness / 2;
-    frameGroup.add(bottomFrame);
+    if ( renderTarget !== undefined ) renderTarget.dispose();
 
-    const leftFrame = new THREE.Mesh(sideFrameGeom, frameMaterial);
-    leftFrame.position.x = -width / 2 - frameThickness / 2;
-    frameGroup.add(leftFrame);
+    sceneEnv.add( sky );
+    renderTarget = pmremGenerator.fromScene( sceneEnv );
+    scene.add( sky );
 
-    const rightFrame = new THREE.Mesh(sideFrameGeom, frameMaterial);
-    rightFrame.position.x = width / 2 + frameThickness / 2;
-    frameGroup.add(rightFrame);
+    scene.environment = renderTarget.texture;
 
-    windowMesh.add(frameGroup);
 }
+updateSun();
 
+textureLoader.load('/static/textures/grass.jpg', (grassTexture) => {
+  grassTexture.wrapS = grassTexture.wrapT = THREE.RepeatWrapping;
 
-// Left Window (Lower)
-const leftWindow = new THREE.Mesh(windowGeometry, windowMaterial);
-leftWindow.position.set(-1.5, -4.75, 2.55);
-createStandardFrame(leftWindow, windowWidth, windowHeight);
-building.add(leftWindow);
+  const groundGeometry = new THREE.PlaneGeometry(mapDims.width, waterHeight);
+  const groundMaterial = new THREE.MeshStandardMaterial({ map: grassTexture });
+  const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = 0;
+  ground.position.z = gameBounds.right;
 
-// Right Window (Lower)
-const rightWindow = new THREE.Mesh(windowGeometry, windowMaterial);
-rightWindow.position.set(1.5, -4.75, 2.55);
-createStandardFrame(rightWindow, windowWidth, windowHeight);
-building.add(rightWindow);
+  scene.add(ground);
+});
 
-// 7. Horizontal Window above Door
-const h_windowWidth = 4;
-const h_windowHeight = 0.75;
-const horizontalWindowGeometry = new THREE.BoxGeometry(h_windowWidth, h_windowHeight, 0.1);
-const horizontalWindow = new THREE.Mesh(horizontalWindowGeometry, windowMaterial);
-horizontalWindow.position.set(0, -3, 2.55);
-building.add(horizontalWindow);
+textureLoader.load('/static/textures/dirt2.jpg', (dirtTexture) => {
+  dirtTexture.wrapS = dirtTexture.wrapT = THREE.MirroredRepeatWrapping;
+//   dirtTexture.repeat.set(mapDims.width, waterHeight);
 
-// Custom frame for horizontal window with dividers
-const h_frameGroup = new THREE.Group();
-const h_topBottomGeom = new THREE.BoxGeometry(h_windowWidth + frameThickness * 2, frameThickness, 0.11);
-const h_sideGeom = new THREE.BoxGeometry(frameThickness, h_windowHeight, 0.11);
-const h_dividerGeom = new THREE.BoxGeometry(frameThickness, h_windowHeight, 0.11);
+  const dirtGeometry = new THREE.PlaneGeometry(mapDims.width, waterHeight);
+  const dirtMaterial = new THREE.MeshStandardMaterial({ map: dirtTexture });
+  const dirt = new THREE.Mesh(dirtGeometry, dirtMaterial);
+  dirt.rotation.x = -Math.PI / 2;
+  dirt.position.y = 0;
+  dirt.position.z = 0;
 
-const h_topFrame = new THREE.Mesh(h_topBottomGeom, frameMaterial);
-h_topFrame.position.y = h_windowHeight / 2 + frameThickness / 2;
-h_frameGroup.add(h_topFrame);
+  scene.add(dirt);
+});
 
-const h_bottomFrame = new THREE.Mesh(h_topBottomGeom, frameMaterial);
-h_bottomFrame.position.y = -h_windowHeight / 2 - frameThickness / 2;
-h_frameGroup.add(h_bottomFrame);
+// --- OBJECTS ---
 
-const h_leftFrame = new THREE.Mesh(h_sideGeom, frameMaterial);
-h_leftFrame.position.x = -h_windowWidth / 2 - frameThickness / 2;
-h_frameGroup.add(h_leftFrame);
+const gltfLoader = new GLTFLoader();
+gltfLoader.load('/static/models/mega_moduler_apartment_building.glb', (glb) => {
+    const buildings = [glb.scene.clone(), glb.scene.clone(), glb.scene.clone()];
+    let buildingSize = new THREE.Box3().setFromObject(buildings[0]).getSize(new THREE.Vector3());
+    buildings.forEach((building) => { scene.add(building); });
+    
+    // Set buildings position
+    const groundDist = -1;
+    buildings[0].position.y = groundDist;
+    buildings[1].position.x = buildings[0].position.x + buildingSize.x + roadWidth;
+    buildings[1].position.y = groundDist;
+    buildings[2].position.x = buildings[1].position.x + buildingSize.x + roadWidth;
+    buildings[2].position.y = groundDist;
+});
 
-const h_rightFrame = new THREE.Mesh(h_sideGeom, frameMaterial);
-h_rightFrame.position.x = h_windowWidth / 2 + frameThickness / 2;
-h_frameGroup.add(h_rightFrame);
+// gltfLoader.load('/static/models/mount_royal_train_station.glb', (glb) => {
+//     scene.add(glb.scene);
+//     glb.scene.position.set(-100, 30, -100);
+// });
 
-// Add dividers to split into thirds
-const divider1 = new THREE.Mesh(h_dividerGeom, frameMaterial);
-divider1.position.x = -h_windowWidth / 6;
-h_frameGroup.add(divider1);
+gltfLoader.load('/static/models/low_poly_dock.glb', (glb) => {
+    let dockSize = new THREE.Box3().setFromObject(glb.scene).getSize(new THREE.Vector3());
+    console.log(dockSize);
+    const numDocks = Math.floor((gameBounds.bottom - gameBounds.top) / dockSize.z);
+    console.log(numDocks);
+    const docks = Array.from({ length: numDocks }, () => (glb.scene.clone()));
+    docks.forEach((dock) => { scene.add(dock); });
 
-const divider2 = new THREE.Mesh(h_dividerGeom, frameMaterial);
-divider2.position.x = h_windowWidth / 6;
-h_frameGroup.add(divider2);
+    // All docks are set at the border of the river and forest.
+    docks.forEach((dock, index) => {
+        dock.position.z = gameBounds.left - 50;
+        dock.position.y = groundDist;
+        dock.rotation.y = - Math.PI / 2;
 
-horizontalWindow.add(h_frameGroup);
+        // The docks are originally loaded horizontal compared to the original scene
+        // and we rotate the object 90 degrees (pi/2). This means we must adjust the x
+        // position by the Z size.
+        if (index == 0) dock.position.x = gameBounds.top;
+        else dock.position.x = docks[index-1].position.x + dockSize.z;
+    });
+    console.log(docks.map((dock) => dock.position));
+});
 
+var characterControls;
+gltfLoader.load('/static/models/Xbot.glb', (glb) => {
+    const model = glb.scene;
 
-// 8. Upper Windows (Duplicates of the lower side windows)
-// Left Window (Upper)
-const upperLeftWindow = new THREE.Mesh(windowGeometry, windowMaterial);
-upperLeftWindow.position.set(-1.5, 1.5, 2.55);
-createStandardFrame(upperLeftWindow, windowWidth, windowHeight);
-building.add(upperLeftWindow);
+    // Scale and position the model
+    model.scale.set(2, 2, 2);
+    model.position.set(0, 0, 0);
+    model.traverse((obj) => {
+        if (obj.isMesh) obj.castShadow = true;
+    });
+    scene.add(model);
 
-// Right Window (Upper)
-const upperRightWindow = new THREE.Mesh(windowGeometry, windowMaterial);
-upperRightWindow.position.set(1.5, 1.5, 2.55);
-createStandardFrame(upperRightWindow, windowWidth, windowHeight);
-building.add(upperRightWindow);
+    const gltfAnimations = glb.animations;
+    const mixer = new THREE.AnimationMixer(model);
+    const animationsMap = new Map();
+    gltfAnimations.filter(a => a.name != 'TPose').forEach((a) => {
+        animationsMap.set(a.name, mixer.clipAction(a));
+    });
 
+    console.log(gltfAnimations.map(anim => anim.name));
 
-// 9. Ground Plane
-const groundGeometry = new THREE.PlaneGeometry(20, 20);
-const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22, side: THREE.DoubleSide }); // Forest green
-const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-// Rotate the plane to be horizontal
-ground.rotation.x = -Math.PI / 2;
-scene.add(ground);
+    characterControls = new CharacterControls(model, mixer, animationsMap, controls, camera,  idle);
+});
 
-
-// --- Controls ---
-
-// OrbitControls allow the camera to be manipulated with the mouse.
-// Arguments: The camera to control, the DOM element to attach event listeners to.
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true; // Adds a sense of inertia to the controls
-// Set a target for the controls to orbit around the center of the building
-controls.target.set(0, 6, 0);
-
-
-// --- Animation Loop ---
-
-// The animate function is called on every frame to update the scene.
-function animate() {
-    // requestAnimationFrame is a browser API for scheduling animations.
-    requestAnimationFrame(animate);
-
-    // Building does not rotate
-
-    // Update the controls if damping is enabled
-    controls.update();
-
-    // Render the scene from the perspective of the camera
-    renderer.render(scene, camera);
-}
-
-
-// --- Responsive Design ---
-
-// Add an event listener to handle window resize events.
-window.addEventListener('resize', () => {
-    // Update the camera's aspect ratio
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-
-    // Update the renderer's size
-    renderer.setSize(window.innerWidth, window.innerHeight);
+// -- Keyboard controls
+const keyState = {}; // Object to hold the state of the keys
+const keyDisplayQueue = new KeyDisplay();
+document.addEventListener('keydown', (event) => {
+    keyDisplayQueue.down(event.key);
+    if (event.shiftKey && characterControls) {
+        characterControls.switchRunToggle();
+    } else {
+        keyState[event.key.toLowerCase()] = true;
+    }
+}, false);
+document.addEventListener('keyup', (event) => {
+    keyDisplayQueue.up(event.key);
+    keyState[event.key.toLowerCase()] = false;
 }, false);
 
+// --- ANIMATION LOOP ---
 
-// --- Start the Animation ---
+const clock = new THREE.Clock();
+function animate() {
+    let mixerUpdateDelta = clock.getDelta();
+    if (characterControls) {
+        characterControls.update(mixerUpdateDelta, keyState);
+    }
+    controls.update();
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+}
+
+// --- RESPONSIVENESS ---
+
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// Start the animation loop!
 animate();
