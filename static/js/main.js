@@ -91,7 +91,7 @@ class KeyDisplay {
         }
     }
 
-}
+};
 
 class CharacterControls {
 
@@ -104,6 +104,10 @@ class CharacterControls {
     // state
     toggleRun = false;
     currentAction;
+    inventory = {
+        meat: 10,
+        metal: 0
+    };
     
     // temporary data
     walkDirection = new THREE.Vector3();
@@ -225,6 +229,10 @@ class CharacterControls {
         }
 
         return directionOffset;
+    }
+
+    updateHUD() {
+        document.getElementById('inventory').innerText = `Meat: ${this.inventory.meat}, Metal: ${this.inventory.metal}`;;
     }
 };
 
@@ -478,6 +486,29 @@ gltfLoader.load('/static/models/low_poly_dock.glb', (glb) => {
     console.debug(docks.map((dock) => dock.position));
 });
 
+const resourceRange = {
+    meat: { min: 1, max: 5},
+    lumber: { min: 1, max: 5},
+    metal: { min: 1, max: 3}
+};
+
+class Boat {
+    model;
+
+    isTrading = false;
+
+    meatWanted;
+    metalOffered;
+
+    constructor(model) {
+        this.model = model;
+        const tradeOffer = generateTrade(resourceRange.meat, resourceRange.metal);
+        this.meatWanted = tradeOffer[0];
+        this.metalOffered = tradeOffer[1];
+    }
+};
+
+var boats = [];
 gltfLoader.load('/static/models/ss_norrtelje_lowpoly.glb', (glb) => {
     let boatSize = new THREE.Box3().setFromObject(glb.scene).getSize(new THREE.Vector3());
     console.log(boatSize);
@@ -490,7 +521,15 @@ gltfLoader.load('/static/models/ss_norrtelje_lowpoly.glb', (glb) => {
     boat.rotation.y = -Math.PI / 2;
 
     scene.add(boat);
+    boats.push(new Boat(boat));
 });
+
+function distanceWithin(src, dst, dist) {
+    console.log(`in distance`);
+    const distance = src.position.distanceTo(dst.position);
+    console.log(`distance ${distance}`);
+    return distance <= dist;
+}
 
 // Forest env
 const numTrees = {type1: 10, type2: 10};
@@ -619,6 +658,63 @@ gltfLoader.load('/static/models/Xbot.glb', (glb) => {
     characterControls = new CharacterControls(model, mixer, animationsMap, controls, camera,  idle);
 });
 
+// UI Utilities
+// Show popup
+function showPopup(meatWanted, metalOffered) {
+    const popup = document.getElementById('popup');
+    if (popup) {
+        popup.style.display = 'flex';
+        document.getElementById('meatWanted').innerText = `Meat wanted: ${meatWanted}`;
+        document.getElementById('metalOffered').innerText = `Metal given: ${metalOffered}`;
+    } else {
+        console.log(`popup is null: ${popup}`);
+    }
+}
+
+// Generate a random trade offer
+function generateTrade(meatRange, metalRange) {
+    let meatCount = Math.floor(Math.random() * meatRange.max) + meatRange.min;
+    let metalCount = Math.floor(Math.random() * metalRange.max) + metalRange.min;
+    return [meatCount, metalCount];
+}
+
+function updateTradeUI(billboardMsg) {
+    document.getElementById('billboard').innerText = billboardMsg;
+    document.getElementById('decision-btns').style.display = 'none';
+}
+
+function resetTradeUI() {
+    document.getElementById('billboard').innerText = 'The Kansas river is tough and my crew is low on food. Are you willing to trade for some metal?';
+    document.getElementById('decision-btns').style.display = 'flex';
+    hideTradeUI();
+}
+
+// Accept trade
+window.executeTrade = function () {
+    // TODO(@NyaliaLui): This is an API call to get the boat that is trading with the user
+    let boat = boats.find((boat) => boat.isTrading);
+    if (!boat) {
+        console.error('Failed to find the trading boat.');
+        return;
+    }
+
+    if (characterControls.inventory.meat >= boat.meatWanted) {
+        characterControls.inventory.meat -= boat.meatWanted;
+        characterControls.inventory.metal += boat.metalOffered;
+        characterControls.updateHUD();
+        alert(`Trade accepted! You gave ${boat.meatWanted} meat and received ${boat.metalOffered} metal.`);
+        resetTradeUI();
+    } else {
+        alert('Not enough meat to complete this trade.');
+        resetTradeUI();
+    }
+
+    // TODO(@NyaliaLui): This is an API call to set the boat trading flag
+    let index = boats.indexOf(boat);
+    if (index > -1) boats[index].isTrading = false;
+    else console.error('Could not find the trading boat. Was it deleted?');
+}
+
 // -- Keyboard controls
 const keyState = {}; // Object to hold the state of the keys
 const keyDisplayQueue = new KeyDisplay();
@@ -629,6 +725,15 @@ document.addEventListener('keydown', (event) => {
     } else if (event.altKey && removableBuildings) {
         removeBuildings(removableBuildings);
         loadTrainStation();
+    } else if (event.key === 'i') {
+        boats.forEach((boat, index) => {
+            console.log(`here ${index}`);
+            if (distanceWithin(characterControls.model, boat.model, 5)) {
+                console.log(`distance ${index}`);
+                boat.isTrading = true;
+                showPopup(boat.meatWanted, boat.metalOffered);
+            }
+        });
     } else {
         keyState[event.key.toLowerCase()] = true;
     }
@@ -645,6 +750,7 @@ function animate() {
     let mixerUpdateDelta = clock.getDelta();
     if (characterControls) {
         characterControls.update(mixerUpdateDelta, keyState);
+        characterControls.updateHUD();
     }
     controls.update();
     renderer.render(scene, camera);
@@ -661,3 +767,4 @@ window.addEventListener('resize', () => {
 
 // Start the animation loop!
 animate();
+resetTradeUI();

@@ -25,8 +25,51 @@
     </script>
 </head>
 <body>
+    <div id="inventory" style="position:fixed; top:10px; left:10px; background:#fff; padding:5px 10px; border:1px solid #000; border-radius:5px;">
+        Meat: 0, Metal: 0
+    </div>
+
+    <!-- Popup UI -->
+    <div id="popup" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); 
+        width:400px; background:#fff; border:2px solid #000; border-radius:8px; padding:20px; flex-direction:column; gap:10px;">
+
+        <!-- Top Row -->
+        <div style="display:flex; justify-content:space-between;">
+            <img src="{{ url_for('static', filename='images/captain.png') }}" alt="Avatar" style="width:50px; height:50px; border-radius:50%;">
+            <button onclick="hideTradeUI()">X</button>
+        </div>
+
+        <!-- Middle Text -->
+        <div id="billboard" style="text-align:center; margin-top:10px; font-size:16px;">
+        </div>
+
+        <!-- Bottom Row -->
+        <div style="display:flex; justify-content:space-between; margin-top:10px;">
+            <div id="meatWanted"></div>
+            <div id="metalOffered"></div>
+        </div>
+
+        <!-- Buttons -->
+        <div id="decision-btns" style="display:flex; justify-content:space-evenly; margin-top:10px;">
+            <button onclick="acceptTrade()">Accept</button>
+            <button onclick="rejectTrade()">Reject</button>
+        </div>
+    </div>
 
     <!-- The main entry point for our Three.js application -->
     <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        function hideTradeUI() {
+            document.getElementById('popup').style.display = 'none';
+        }
+
+        function acceptTrade() {
+            executeTrade();
+        }
+
+        function rejectTrade() {
+            hideTradeUI();
+        }
+    </script>
 </body>
 </html>
