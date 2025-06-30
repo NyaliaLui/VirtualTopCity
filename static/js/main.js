@@ -508,10 +508,11 @@ class Boat {
     }
 };
 
+const boatInteractionDist = 15;
 var boats = [];
 gltfLoader.load('/static/models/ss_norrtelje_lowpoly.glb', (glb) => {
     let boatSize = new THREE.Box3().setFromObject(glb.scene).getSize(new THREE.Vector3());
-    console.log(boatSize);
+    console.debug(boatSize);
     const boat = glb.scene;
 
     const groundDist = 0;
@@ -521,13 +522,13 @@ gltfLoader.load('/static/models/ss_norrtelje_lowpoly.glb', (glb) => {
     boat.rotation.y = -Math.PI / 2;
 
     scene.add(boat);
+    boat.name = `boat-1`;
     boats.push(new Boat(boat));
 });
 
 function distanceWithin(src, dst, dist) {
-    console.log(`in distance`);
     const distance = src.position.distanceTo(dst.position);
-    console.log(`distance ${distance}`);
+    console.debug(`src: ${src.name}, dst: ${dst.name}, distance ${distance}`);
     return distance <= dist;
 }
 
@@ -575,7 +576,7 @@ gltfLoader.load('/static/models/bison.glb', (glb) => {
     bison.mixer = new THREE.AnimationMixer(bison.scene);
     placeBison();
 
-    console.log(bison.animations.map(anim => anim.name));
+    console.debug(bison.animations.map(anim => anim.name));
 });
 
 const fox = {scene: new THREE.Object3D(), animations: [], mixer: undefined};
@@ -588,7 +589,7 @@ gltfLoader.load('/static/models/fox.glb', (glb) => {
     fox.mixer = new THREE.AnimationMixer(fox.scene);
     placeFox();
 
-    console.log(fox.animations.map(anim => anim.name));
+    console.debug(fox.animations.map(anim => anim.name));
 });
 
 const deer = {scene: new THREE.Object3D(), animations: [], mixer: undefined};
@@ -600,7 +601,7 @@ gltfLoader.load('/static/models/animated_low_poly_deer_game_ready.glb', (glb) =>
     deer.mixer = new THREE.AnimationMixer(deer.scene);
     placeDeer();
 
-    console.log(deer.animations.map(anim => anim.name));
+    console.debug(deer.animations.map(anim => anim.name));
 });
 
 function placeBison() {
@@ -639,6 +640,7 @@ gltfLoader.load('/static/models/Xbot.glb', (glb) => {
     const model = glb.scene;
 
     // Scale and position the model
+    model.name = 'username';
     model.scale.set(2, 2, 2);
     model.position.set(0, 0, 0);
     model.traverse((obj) => {
@@ -661,14 +663,9 @@ gltfLoader.load('/static/models/Xbot.glb', (glb) => {
 // UI Utilities
 // Show popup
 function showPopup(meatWanted, metalOffered) {
-    const popup = document.getElementById('popup');
-    if (popup) {
-        popup.style.display = 'flex';
-        document.getElementById('meatWanted').innerText = `Meat wanted: ${meatWanted}`;
-        document.getElementById('metalOffered').innerText = `Metal given: ${metalOffered}`;
-    } else {
-        console.log(`popup is null: ${popup}`);
-    }
+    document.getElementById('popup').style.display = 'flex';
+    document.getElementById('meatWanted').innerText = `Meat wanted: ${meatWanted}`;
+    document.getElementById('metalOffered').innerText = `Metal given: ${metalOffered}`;
 }
 
 // Generate a random trade offer
@@ -726,10 +723,8 @@ document.addEventListener('keydown', (event) => {
         removeBuildings(removableBuildings);
         loadTrainStation();
     } else if (event.key === 'i') {
-        boats.forEach((boat, index) => {
-            console.log(`here ${index}`);
-            if (distanceWithin(characterControls.model, boat.model, 5)) {
-                console.log(`distance ${index}`);
+        boats.forEach((boat) => {
+            if (distanceWithin(characterControls.model, boat.model, boatInteractionDist)) {
                 boat.isTrading = true;
                 showPopup(boat.meatWanted, boat.metalOffered);
             }
