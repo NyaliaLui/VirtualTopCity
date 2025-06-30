@@ -17,7 +17,21 @@ const walk = 'walk';
 const run = 'run';
 const roadWidth = 10;
 const mapDims = {width: 500, height: 500};
+const mapBounds = {right: -250, left: 250, top: -200, bottom: 170};
 const gameBounds = {right: -100, left: 100, top: -100, bottom: 100};
+const playBounds = {right: gameBounds.right + 50, left: gameBounds.left - 50, top: gameBounds.top + 50, bottom: gameBounds.bottom - 50};
+const cityBounds = {right: gameBounds.right, left: playBounds.right, top: gameBounds.top, bottom: gameBounds.bottom};
+
+function getRandomInt(min, max) {
+  const minCeiled = Math.ceil(min);
+  const maxFloored = Math.floor(max);
+  return Math.floor(Math.random() * (maxFloored - minCeiled) + minCeiled); // The maximum is exclusive and the minimum is inclusive
+}
+
+function getRandomRotation() {
+    let denominator = [6,4,3,2];
+    return (- Math.PI / denominator[Math.floor(Math.random() * denominator.length)]);
+}
 
 class KeyDisplay {
 
@@ -99,7 +113,7 @@ class CharacterControls {
     
     // constants
     fadeDuration = 0.2;
-    runVelocity = 25;
+    runVelocity = 50;
     walkVelocity = 10;
 
     constructor(model, mixer, animationsMap, orbitControl, camera, currentAction) {
@@ -212,7 +226,7 @@ class CharacterControls {
 
         return directionOffset;
     }
-}
+};
 
 // Scene: This is the container for all our 3D objects.
 const scene = new THREE.Scene();
@@ -315,21 +329,20 @@ textureLoader.load('/static/textures/grass.jpg', (grassTexture) => {
   const ground = new THREE.Mesh(groundGeometry, groundMaterial);
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = 0;
-  ground.position.z = gameBounds.right;
+  ground.position.z = 0;
 
   scene.add(ground);
 });
 
-textureLoader.load('/static/textures/dirt2.jpg', (dirtTexture) => {
+textureLoader.load('/static/textures/dirt.jpg', (dirtTexture) => {
   dirtTexture.wrapS = dirtTexture.wrapT = THREE.MirroredRepeatWrapping;
-//   dirtTexture.repeat.set(mapDims.width, waterHeight);
 
   const dirtGeometry = new THREE.PlaneGeometry(mapDims.width, waterHeight);
   const dirtMaterial = new THREE.MeshStandardMaterial({ map: dirtTexture });
   const dirt = new THREE.Mesh(dirtGeometry, dirtMaterial);
   dirt.rotation.x = -Math.PI / 2;
   dirt.position.y = 0;
-  dirt.position.z = 0;
+  dirt.position.z = gameBounds.right;
 
   scene.add(dirt);
 });
@@ -337,33 +350,119 @@ textureLoader.load('/static/textures/dirt2.jpg', (dirtTexture) => {
 // --- OBJECTS ---
 
 const gltfLoader = new GLTFLoader();
+
+// City env
+// Back row of buildings
 gltfLoader.load('/static/models/mega_moduler_apartment_building.glb', (glb) => {
-    const buildings = [glb.scene.clone(), glb.scene.clone(), glb.scene.clone()];
-    let buildingSize = new THREE.Box3().setFromObject(buildings[0]).getSize(new THREE.Vector3());
+    let buildingSize = new THREE.Box3().setFromObject(glb.scene).getSize(new THREE.Vector3());
+    console.debug(buildingSize);
+    const numBuildings = Math.floor((mapBounds.bottom - mapBounds.top) / buildingSize.x);
+    console.debug(numBuildings);
+    const buildings = Array.from({ length: numBuildings }, () => (glb.scene.clone()));
     buildings.forEach((building) => { scene.add(building); });
     
-    // Set buildings position
     const groundDist = -1;
-    buildings[0].position.y = groundDist;
-    buildings[1].position.x = buildings[0].position.x + buildingSize.x + roadWidth;
-    buildings[1].position.y = groundDist;
-    buildings[2].position.x = buildings[1].position.x + buildingSize.x + roadWidth;
-    buildings[2].position.y = groundDist;
+    buildings.forEach((building, index) => {
+        building.position.x  = 0;
+        building.position.y = groundDist;
+        building.position.z = cityBounds.left - 65;
+
+        if (index == 0) building.position.x = mapBounds.top;
+        else building.position.x = buildings[index-1].position.x + buildingSize.x + roadWidth;
+    });
 });
 
-// gltfLoader.load('/static/models/mount_royal_train_station.glb', (glb) => {
-//     scene.add(glb.scene);
-//     glb.scene.position.set(-100, 30, -100);
-// });
+// Front row of buildings
+var removableBuildings = new Array(3);
+gltfLoader.load('/static/models/mega_moduler_apartment_building.glb', (glb) => {
+    let buildingSize = new THREE.Box3().setFromObject(glb.scene).getSize(new THREE.Vector3());
+    console.debug(buildingSize);
+    const numBuildings = Math.floor((mapBounds.bottom - mapBounds.top) / buildingSize.x);
+    console.debug(numBuildings);
+    const buildings = Array.from({ length: numBuildings }, () => (glb.scene.clone()));
+    buildings.forEach((building) => { scene.add(building); });
+    
+    const groundDist = -1;
+    buildings.forEach((building, index) => {
+        building.position.x  = 0;
+        building.position.y = groundDist;
+        building.position.z = cityBounds.left;
 
+        if (index == 0) building.position.x = mapBounds.top;
+        else building.position.x = buildings[index-1].position.x + buildingSize.x + roadWidth;
+
+        building.name = `front-building-${index}`;
+
+        if (index >= 3 && index <= 5) {
+            removableBuildings.push(building.name);
+        }
+    });
+});
+
+function removeBuildings(names) {
+    names.forEach((name) => {
+        let building = scene.getObjectByName(name);
+        scene.remove(building);
+    });
+}
+
+function loadTrainStation() {
+    gltfLoader.load('/static/models/mount_royal_train_station.glb', (glb) => {
+        const station = glb.scene;
+        let stationSize = new THREE.Box3().setFromObject(glb.scene).getSize(new THREE.Vector3());
+        console.debug(stationSize);
+        scene.add(station);
+
+        const groundDist = 24;
+        station.position.set(0, groundDist, cityBounds.left - 65);
+    });
+
+    gltfLoader.load('/static/models/rail_long.glb', (glb) => {
+        let railSize = new THREE.Box3().setFromObject(glb.scene).getSize(new THREE.Vector3());
+        console.debug(railSize);
+        const numRails = 8;
+        console.debug(numRails);
+        const rails = Array.from({ length: numRails }, () => (glb.scene.clone()));
+        rails.forEach((rail) => { 
+            rail.scale.set(5,2,2);
+            scene.add(rail);
+        });
+
+        const groundDist = 0;
+        // All rails are set at the border of the city and forest.
+        rails.forEach((rail, index) => {
+            rail.position.z = cityBounds.left - railSize.z - 4.5;
+            rail.position.y = groundDist;
+            rail.rotation.y = - Math.PI / 2;
+
+            // The city are originally loaded horizontal compared to the original scene
+            // and we rotate the object 90 degrees (pi/2). This means we must adjust the x
+            // position by the Z size.
+            if (index == 0) rail.position.x = -30;
+            else rail.position.x = rails[index-1].position.x + railSize.z + 3;
+        });
+        console.debug(rails.map((rail) => rail.position));
+    });
+
+    gltfLoader.load('/static/models/train.glb', (glb) => {
+        const train = glb.scene;
+        train.scale.set(0.4,0.4,0.4);
+        scene.add(train);
+        train.position.set(0, 0.2, cityBounds.left - 8);
+        train.rotation.y = -Math.PI / 2;
+    });
+}
+
+// River env
 gltfLoader.load('/static/models/low_poly_dock.glb', (glb) => {
     let dockSize = new THREE.Box3().setFromObject(glb.scene).getSize(new THREE.Vector3());
-    console.log(dockSize);
+    console.debug(dockSize);
     const numDocks = Math.floor((gameBounds.bottom - gameBounds.top) / dockSize.z);
-    console.log(numDocks);
+    console.debug(numDocks);
     const docks = Array.from({ length: numDocks }, () => (glb.scene.clone()));
     docks.forEach((dock) => { scene.add(dock); });
 
+    const groundDist = -2;
     // All docks are set at the border of the river and forest.
     docks.forEach((dock, index) => {
         dock.position.z = gameBounds.left - 50;
@@ -376,8 +475,125 @@ gltfLoader.load('/static/models/low_poly_dock.glb', (glb) => {
         if (index == 0) dock.position.x = gameBounds.top;
         else dock.position.x = docks[index-1].position.x + dockSize.z;
     });
-    console.log(docks.map((dock) => dock.position));
+    console.debug(docks.map((dock) => dock.position));
 });
+
+gltfLoader.load('/static/models/ss_norrtelje_lowpoly.glb', (glb) => {
+    let boatSize = new THREE.Box3().setFromObject(glb.scene).getSize(new THREE.Vector3());
+    console.log(boatSize);
+    const boat = glb.scene;
+
+    const groundDist = 0;
+    boat.position.x = 0;
+    boat.position.y = groundDist;
+    boat.position.z = gameBounds.left - 43;
+    boat.rotation.y = -Math.PI / 2;
+
+    scene.add(boat);
+});
+
+// Forest env
+const numTrees = {type1: 10, type2: 10};
+const posTrees = {left: playBounds.left - 5, right: playBounds.right + 5, top: playBounds.top, bottom: playBounds.bottom};
+
+gltfLoader.load('/static/models/leaf_tree_-_ps1_low_poly.glb', (glb) => {
+    const trees = Array.from({ length: numTrees.type1 }, () => (glb.scene.clone()));
+    trees.forEach((tree) => { scene.add(tree); });
+
+    const groundDist = 0;
+    trees.forEach((tree) => {
+        tree.position.x = getRandomInt(posTrees.top, posTrees.bottom);
+        tree.position.y = groundDist;
+        tree.position.z = getRandomInt(posTrees.right, posTrees.left);
+        tree.rotation.y = getRandomRotation();
+    });
+    console.debug(trees.map((tree) => tree.position));
+});
+
+gltfLoader.load('/static/models/pine_tree_01.glb', (glb) => {
+    const trees = Array.from({ length: numTrees.type2 }, () => (glb.scene.clone()));
+    trees.forEach((tree) => { scene.add(tree); });
+    const groundDist = 3;
+
+    trees.forEach((tree) => {
+        tree.scale.set(7,7,7);
+        tree.position.x = getRandomInt(posTrees.top, posTrees.bottom);
+        tree.position.y = groundDist;
+        tree.position.z = getRandomInt(posTrees.right, posTrees.left);
+        tree.rotation.y = getRandomRotation();
+    });
+    console.debug(trees.map((tree) => tree.position));
+});
+
+// Animals
+const bison = { scene: new THREE.Object3D(), animations: [], mixer: undefined};
+gltfLoader.load('/static/models/bison.glb', (glb) => {
+    bison.scene = glb.scene;
+    bison.scene.name = 'bison';
+    bison.scene.scale.set(0.5,0.5,0.5);
+
+    bison.animations = glb.animations;
+    bison.mixer = new THREE.AnimationMixer(bison.scene);
+    placeBison();
+
+    console.log(bison.animations.map(anim => anim.name));
+});
+
+const fox = {scene: new THREE.Object3D(), animations: [], mixer: undefined};
+gltfLoader.load('/static/models/fox.glb', (glb) => {
+    fox.scene = glb.scene;
+    fox.scene.name = 'fox';
+    fox.scene.scale.set(300,300,300);
+
+    fox.animations = glb.animations;
+    fox.mixer = new THREE.AnimationMixer(fox.scene);
+    placeFox();
+
+    console.log(fox.animations.map(anim => anim.name));
+});
+
+const deer = {scene: new THREE.Object3D(), animations: [], mixer: undefined};
+gltfLoader.load('/static/models/animated_low_poly_deer_game_ready.glb', (glb) => {
+    deer.scene = glb.scene;
+    deer.scene.name = 'deer';
+
+    deer.animations = glb.animations;
+    deer.mixer = new THREE.AnimationMixer(deer.scene);
+    placeDeer();
+
+    console.log(deer.animations.map(anim => anim.name));
+});
+
+function placeBison() {
+    const groundDist = 3;
+    bison.scene.position.x = getRandomInt(posTrees.top, posTrees.bottom);
+    bison.scene.position.y = groundDist;
+    bison.scene.position.z = getRandomInt(posTrees.right, posTrees.left);
+    bison.scene.rotation.y = getRandomRotation();
+    scene.add(bison.scene);
+}
+
+function placeFox() {
+    // let foxSize = new THREE.Box3().setFromObject(glb.scene).getSize(new THREE.Vector3());
+    // console.debug(foxSize);
+    const groundDist = 0;
+    fox.scene.position.x = getRandomInt(posTrees.top, posTrees.bottom);
+    fox.scene.position.y = groundDist;
+    fox.scene.position.z = getRandomInt(posTrees.right, posTrees.left);
+    fox.scene.rotation.y = getRandomRotation();
+    scene.add(fox.scene);
+}
+
+function placeDeer() {
+    // let deerSize = new THREE.Box3().setFromObject(glb.scene).getSize(new THREE.Vector3());
+    // console.debug(deerSize);
+    const groundDist = 0;
+    deer.scene.position.x = getRandomInt(posTrees.top, posTrees.bottom);
+    deer.scene.position.y = groundDist;
+    deer.scene.position.z = getRandomInt(posTrees.right, posTrees.left);
+    deer.scene.rotation.y = getRandomRotation();
+    scene.add(deer.scene);
+}
 
 var characterControls;
 gltfLoader.load('/static/models/Xbot.glb', (glb) => {
@@ -398,7 +614,7 @@ gltfLoader.load('/static/models/Xbot.glb', (glb) => {
         animationsMap.set(a.name, mixer.clipAction(a));
     });
 
-    console.log(gltfAnimations.map(anim => anim.name));
+    console.debug(gltfAnimations.map(anim => anim.name));
 
     characterControls = new CharacterControls(model, mixer, animationsMap, controls, camera,  idle);
 });
@@ -410,6 +626,9 @@ document.addEventListener('keydown', (event) => {
     keyDisplayQueue.down(event.key);
     if (event.shiftKey && characterControls) {
         characterControls.switchRunToggle();
+    } else if (event.altKey && removableBuildings) {
+        removeBuildings(removableBuildings);
+        loadTrainStation();
     } else {
         keyState[event.key.toLowerCase()] = true;
     }

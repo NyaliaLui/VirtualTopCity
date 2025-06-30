@@ -32,10 +32,12 @@ A simple web app that put Topeka, KS into Virtual Reality
 
 - "Animated FPS Axe" (https://skfb.ly/psWMM) by Levraicoincoin is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).
 
-- "Animated Grass - Vegetation" (https://skfb.ly/ouLpu) by raguramkgr is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).
-
-- "Yard Grass" (https://skfb.ly/6VxNM) by ebmclachlan is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).
-
 - "Pine tree 01" (https://skfb.ly/oNLHK) by POLYSCAN is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).
 
 - "Leaf Tree - PS1 Low Poly" (https://skfb.ly/oFzxW) by Wersaus33 is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).
+
+- "Train" (https://skfb.ly/oT6WL) by Marcus4rt is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).
+
+- "S/S Norrtelje (lowpoly!)" (https://skfb.ly/oN9O9) by norlinmartin is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).
+
+- "Royal Navy Shipboy" (https://skfb.ly/6VnMq) by JanPohl is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).
