@@ -3,18 +3,27 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { Water } from 'three/addons/objects/Water.js';
+import { Player } from './Player.js';
 
-// --- BASIC SETUP ---
-const W = 'w';
-const A = 'a';
-const S = 's';
-const D = 'd';
-const SHIFT = 'shift';
-const DIRECTIONS = [W, A, S, D];
-const idle = 'axe_IDLE';
-const walk = 'axe_WALK';
-const run = 'axe_RUN';
-const hit = 'axe_ATK1+ATK2(hit)';
+
+class World {
+    constructor() {
+        this.meshes = [];
+        this.objects = [];
+    }
+
+    resetObjects() {
+        this.objects = [];
+        this.meshes.forEach((mesh) => {
+            if (mesh) {
+                const b = new THREE.Box3();
+                b.setFromObject(mesh);
+                this.objects.push(b);
+            }
+        });
+    }
+};
+
 const roadWidth = 10;
 const mapDims = {width: 500, height: 500};
 const mapBounds = {right: -250, left: 250, top: -200, bottom: 170};
@@ -33,66 +42,6 @@ function getRandomRotation() {
     return (- Math.PI / denominator[Math.floor(Math.random() * denominator.length)]);
 }
 
-class KeyDisplay {
-
-    map = new Map();
-
-    constructor() {
-        const w = document.createElement("div");
-        const a = document.createElement("div");
-        const s = document.createElement("div");
-        const d = document.createElement("div");
-        const shift = document.createElement("div");
-
-        this.map.set(W, w);
-        this.map.set(A, a);
-        this.map.set(S, s);
-        this.map.set(D, d);
-        this.map.set(SHIFT, shift);
-
-        this.map.forEach( (v, k) => {
-            v.style.color = 'blue';
-            v.style.fontSize = '50px';
-            v.style.fontWeight = '800';
-            v.style.position = 'absolute';
-            v.textContent = k;
-        })
-
-        this.updatePosition();
-
-        this.map.forEach( (v, _) => {
-            document.body.append(v);
-        });
-    }
-
-    updatePosition() {
-        this.map.get(W).style.top = `${window.innerHeight - 150}px`;
-        this.map.get(A).style.top = `${window.innerHeight - 100}px`;
-        this.map.get(S).style.top = `${window.innerHeight - 100}px`;
-        this.map.get(D).style.top = `${window.innerHeight - 100}px`;
-        this.map.get(SHIFT).style.top = `${window.innerHeight - 100}px`;
-
-        this.map.get(W).style.left = `${300}px`;
-        this.map.get(A).style.left = `${200}px`;
-        this.map.get(S).style.left = `${300}px`;
-        this.map.get(D).style.left = `${400}px`;
-        this.map.get(SHIFT).style.left = `${50}px`;
-    }
-
-    down (key) {
-        if (this.map.get(key.toLowerCase())) {
-            this.map.get(key.toLowerCase()).style.color = 'red';
-        }
-    }
-
-    up (key) {
-        if (this.map.get(key.toLowerCase())) {
-            this.map.get(key.toLowerCase()).style.color = 'blue';
-        }
-    }
-
-};
-
 // Scene: This is the container for all our 3D objects.
 const scene = new THREE.Scene();
 // The background will be set by the skybox loader later.
@@ -108,6 +57,8 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Softer shadows
 document.body.appendChild(renderer.domElement);
+
+const world = new World();
 
 const textureLoader = new THREE.TextureLoader();
 
@@ -223,10 +174,13 @@ gltfLoader.load('/static/models/mega_moduler_apartment_building.glb', (glb) => {
 
         if (index == 0) building.position.x = mapBounds.top;
         else building.position.x = buildings[index-1].position.x + buildingSize.x + roadWidth;
+
+        world.meshes.push(building);
     });
 });
 
 // Front row of buildings
+const removableBuildingsRange = { min: 3, max: 5};
 var removableBuildings = new Array(3);
 gltfLoader.load('/static/models/mega_moduler_apartment_building.glb', (glb) => {
     let buildingSize = new THREE.Box3().setFromObject(glb.scene).getSize(new THREE.Vector3());
@@ -247,7 +201,9 @@ gltfLoader.load('/static/models/mega_moduler_apartment_building.glb', (glb) => {
 
         building.name = `front-building-${index}`;
 
-        if (index >= 3 && index <= 5) {
+        world.meshes.push(building);
+
+        if (index >= removableBuildingsRange.min && index <= removableBuildingsRange.max) {
             removableBuildings.push(building.name);
         }
     });
@@ -257,6 +213,12 @@ function removeBuildings(names) {
     names.forEach((name) => {
         let building = scene.getObjectByName(name);
         scene.remove(building);
+
+        // Mark removed buildings for removal
+        let index = world.meshes.indexOf(building);
+        if (index > -1) {
+            world.meshes[index] = undefined;
+        }
     });
 }
 
@@ -269,6 +231,7 @@ function loadTrainStation() {
 
         const groundDist = 24;
         station.position.set(0, groundDist, cityBounds.left - 65);
+        world.meshes.push(station);
     });
 
     gltfLoader.load('/static/models/rail_long.glb', (glb) => {
@@ -294,6 +257,7 @@ function loadTrainStation() {
             // position by the Z size.
             if (index == 0) rail.position.x = -30;
             else rail.position.x = rails[index-1].position.x + railSize.z + 3;
+            world.meshes.push(rail);
         });
         console.debug(rails.map((rail) => rail.position));
     });
@@ -304,6 +268,7 @@ function loadTrainStation() {
         scene.add(train);
         train.position.set(0, 0.2, cityBounds.left - 8);
         train.rotation.y = -Math.PI / 2;
+        world.meshes.push(train);
     });
 }
 
@@ -328,6 +293,7 @@ gltfLoader.load('/static/models/low_poly_dock.glb', (glb) => {
         // position by the Z size.
         if (index == 0) dock.position.x = gameBounds.top;
         else dock.position.x = docks[index-1].position.x + dockSize.z;
+        world.meshes.push(dock);
     });
     console.debug(docks.map((dock) => dock.position));
 });
@@ -370,6 +336,7 @@ gltfLoader.load('/static/models/ss_norrtelje_lowpoly.glb', (glb) => {
     scene.add(boat);
     boat.name = `boat-1`;
     boats.push(new Boat(boat));
+    world.meshes.push(boat);
 });
 
 function distanceWithin(src, dst, dist) {
@@ -392,6 +359,7 @@ gltfLoader.load('/static/models/leaf_tree_-_ps1_low_poly.glb', (glb) => {
         tree.position.y = groundDist;
         tree.position.z = getRandomInt(posTrees.right, posTrees.left);
         tree.rotation.y = getRandomRotation();
+        world.meshes.push(tree);
     });
     console.debug(trees.map((tree) => tree.position));
 });
@@ -407,6 +375,7 @@ gltfLoader.load('/static/models/pine_tree_01.glb', (glb) => {
         tree.position.y = groundDist;
         tree.position.z = getRandomInt(posTrees.right, posTrees.left);
         tree.rotation.y = getRandomRotation();
+        world.meshes.push(tree);
     });
     console.debug(trees.map((tree) => tree.position));
 });
@@ -421,6 +390,7 @@ gltfLoader.load('/static/models/bison.glb', (glb) => {
     bison.animations = glb.animations;
     bison.mixer = new THREE.AnimationMixer(bison.scene);
     placeBison();
+    world.meshes.push(bison.scene);
 
     console.debug(bison.animations.map(anim => anim.name));
 });
@@ -434,6 +404,7 @@ gltfLoader.load('/static/models/fox.glb', (glb) => {
     fox.animations = glb.animations;
     fox.mixer = new THREE.AnimationMixer(fox.scene);
     placeFox();
+    world.meshes.push(fox.scene);
 
     console.debug(fox.animations.map(anim => anim.name));
 });
@@ -446,6 +417,7 @@ gltfLoader.load('/static/models/animated_low_poly_deer_game_ready.glb', (glb) =>
     deer.animations = glb.animations;
     deer.mixer = new THREE.AnimationMixer(deer.scene);
     placeDeer();
+    world.meshes.push(deer.scene);
 
     console.debug(deer.animations.map(anim => anim.name));
 });
@@ -481,29 +453,8 @@ function placeDeer() {
     scene.add(deer.scene);
 }
 
-var characterControls;
-gltfLoader.load('/static/models/animated_fps_axe.glb', (glb) => {
-    const model = glb.scene;
-
-    // Scale and position the model
-    model.name = 'username';
-    model.scale.set(2, 2, 2);
-    model.position.set(0, 0, 0);
-    model.rotation.y = -Math.PI;
-    model.traverse((obj) => {
-        if (obj.isMesh) obj.castShadow = true;
-    });
-    scene.add(model);
-
-    const gltfAnimations = glb.animations;
-    const mixer = new THREE.AnimationMixer(model);
-    const animationsMap = new Map();
-    gltfAnimations.forEach((a) => {
-        animationsMap.set(a.name, mixer.clipAction(a));
-    });
-
-    console.log(gltfAnimations.map(anim => anim.name));
-});
+world.resetObjects();
+const player = new Player(scene, camera, world);
 
 // UI Utilities
 // Show popup
@@ -540,10 +491,9 @@ window.executeTrade = function () {
         return;
     }
 
-    if (characterControls.inventory.meat >= boat.meatWanted) {
-        characterControls.inventory.meat -= boat.meatWanted;
-        characterControls.inventory.metal += boat.metalOffered;
-        characterControls.updateHUD();
+    if (player.inventory.meat >= boat.meatWanted) {
+        player.inventory.meat -= boat.meatWanted;
+        player.inventory.metal += boat.metalOffered;
         alert(`Trade accepted! You gave ${boat.meatWanted} meat and received ${boat.metalOffered} metal.`);
         resetTradeUI();
     } else {
@@ -557,41 +507,32 @@ window.executeTrade = function () {
     else console.error('Could not find the trading boat. Was it deleted?');
 }
 
-// -- Keyboard controls
-const keyState = {}; // Object to hold the state of the keys
-const keyDisplayQueue = new KeyDisplay();
+// -- Player controls
 document.addEventListener('keydown', (event) => {
-    keyDisplayQueue.down(event.key);
-    if (event.shiftKey && characterControls) {
-        characterControls.switchRunToggle();
-    } else if (event.altKey && removableBuildings) {
+    if (event.altKey && removableBuildings) {
+        // TODO(@NyaliaLui): This is a place holder for a game event
+        // when the max resources are collected.
         removeBuildings(removableBuildings);
         loadTrainStation();
+        world.resetObjects();
     } else if (event.key === 'i') {
+        // TODO(@NyaliaLui): This should be apart of the player controls which requires
+        // the list of environment objects
         boats.forEach((boat) => {
-            if (distanceWithin(characterControls.model, boat.model, boatInteractionDist)) {
+            if (distanceWithin(player.model(), boat.model, boatInteractionDist)) {
                 boat.isTrading = true;
                 showPopup(boat.meatWanted, boat.metalOffered);
             }
         });
-    } else {
-        keyState[event.key.toLowerCase()] = true;
     }
-}, false);
-document.addEventListener('keyup', (event) => {
-    keyDisplayQueue.up(event.key);
-    keyState[event.key.toLowerCase()] = false;
 }, false);
 
 // --- ANIMATION LOOP ---
 
 const clock = new THREE.Clock();
 function animate() {
-    let mixerUpdateDelta = clock.getDelta();
-    if (characterControls) {
-        characterControls.update(mixerUpdateDelta, keyState);
-        characterControls.updateHUD();
-    }
+    const timeElapsedS = clock.getDelta();
+    player.update(timeElapsedS);
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
 }
