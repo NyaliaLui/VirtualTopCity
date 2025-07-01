@@ -16,6 +16,11 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/test")
+def test():
+    return render_template("test.html")
+
+
 if __name__ == "__main__":
     # Run the app in debug mode, which allows for automatic reloading
     # when code changes are detected.

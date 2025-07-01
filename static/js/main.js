@@ -1,7 +1,6 @@
 // Import necessary modules from Three.js via the importmap
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { Water } from 'three/addons/objects/Water.js';
 
@@ -12,9 +11,10 @@ const S = 's';
 const D = 'd';
 const SHIFT = 'shift';
 const DIRECTIONS = [W, A, S, D];
-const idle = 'idle';
-const walk = 'walk';
-const run = 'run';
+const idle = 'axe_IDLE';
+const walk = 'axe_WALK';
+const run = 'axe_RUN';
+const hit = 'axe_ATK1+ATK2(hit)';
 const roadWidth = 10;
 const mapDims = {width: 500, height: 500};
 const mapBounds = {right: -250, left: 250, top: -200, bottom: 170};
@@ -93,149 +93,6 @@ class KeyDisplay {
 
 };
 
-class CharacterControls {
-
-    model;
-    mixer;
-    animationsMap = new Map(); // Walk, Run, Idle
-    orbitControl;
-    camera;
-
-    // state
-    toggleRun = false;
-    currentAction;
-    inventory = {
-        meat: 10,
-        metal: 0
-    };
-    
-    // temporary data
-    walkDirection = new THREE.Vector3();
-    rotateAngle = new THREE.Vector3(0, -1, 0);
-    rotateQuarternion = new THREE.Quaternion();
-    cameraTarget = new THREE.Vector3();
-    
-    // constants
-    fadeDuration = 0.2;
-    runVelocity = 50;
-    walkVelocity = 10;
-
-    constructor(model, mixer, animationsMap, orbitControl, camera, currentAction) {
-        this.model = model;
-        this.mixer = mixer;
-        this.animationsMap = animationsMap;
-        this.currentAction = currentAction;
-        this.animationsMap.forEach((value, key) => {
-            if (key == currentAction) {
-                value.play();
-            }
-        })
-        this.orbitControl = orbitControl;
-        this.camera = camera;
-        this.updateCameraTarget(0,0);
-    }
-
-    switchRunToggle() {
-        this.toggleRun = !this.toggleRun;
-    }
-
-    update(delta, keyState) {
-        const directionPressed = DIRECTIONS.some(key => keyState[key] == true);
-
-        let play = '';
-        if (directionPressed && this.toggleRun) {
-            play = run;
-        } else if (directionPressed) {
-            play = walk;
-        } else {
-            play = idle;
-        }
-
-        if (this.currentAction != play) {
-            const toPlay = this.animationsMap.get(play);
-            const current = this.animationsMap.get(this.currentAction);
-
-            current.fadeOut(this.fadeDuration);
-            toPlay.reset().fadeIn(this.fadeDuration).play();
-
-            this.currentAction = play;
-        }
-
-        this.mixer.update(delta);
-
-        if (this.currentAction == run || this.currentAction == walk) {
-            // calculate towards camera direction
-            let angleYCameraDirection = Math.atan2(
-                    (this.camera.position.x - this.model.position.x), 
-                    (this.camera.position.z - this.model.position.z))
-            // diagonal movement angle offset
-            let directionOffset = this.directionOffset(keyState);
-
-            // rotate model
-            this.rotateQuarternion.setFromAxisAngle(this.rotateAngle, angleYCameraDirection + directionOffset);
-            this.model.quaternion.rotateTowards(this.rotateQuarternion, 0.2);
-
-            // calculate direction
-            this.camera.getWorldDirection(this.walkDirection);
-            this.walkDirection.y = 0;
-            this.walkDirection.normalize();
-            this.walkDirection.applyAxisAngle(this.rotateAngle, directionOffset);
-
-            // run/walk velocity
-            const velocity = this.currentAction == run ? this.runVelocity : this.walkVelocity;
-
-            // move model & camera
-            const moveX = this.walkDirection.x * velocity * delta;
-            const moveZ = this.walkDirection.z * velocity * delta;
-            this.model.position.x += moveX;
-            this.model.position.z += moveZ;
-            this.updateCameraTarget(moveX, moveZ);
-        }
-    }
-
-    updateCameraTarget(moveX, moveZ) {
-        // move camera
-        this.camera.position.x += moveX;
-        this.camera.position.z += moveZ;
-
-        // update camera target
-        this.cameraTarget.x = this.model.position.x;
-        this.cameraTarget.y = this.model.position.y + 1;
-        this.cameraTarget.z = this.model.position.z;
-        this.orbitControl.target = this.cameraTarget;
-    }
-
-    directionOffset(keyState) {
-        let directionOffset = 0; // w
-
-        if (keyState[W]) {
-            if (keyState[A]) {
-                directionOffset = -Math.PI / 4; // w+a
-            } else if (keyState[D]) {
-                directionOffset = Math.PI / 4; // w+d
-            }
-        } else if (keyState[S]) {
-            if (keyState[A]) {
-                directionOffset = -Math.PI / 4 - Math.PI / 2; // s+a
-            } else if (keyState[D]) {
-                directionOffset = Math.PI / 4 + Math.PI / 2; // s+d
-            } else {
-                directionOffset = Math.PI; // s
-            }
-        } else if (keyState[A]) {
-            directionOffset = - Math.PI / 2; // a
-        } else if (keyState[D]) {
-            directionOffset = Math.PI / 2; // d
-        }
-
-        return directionOffset;
-    }
-
-    updateHUD() {
-        document.getElementById('inventory').innerText = `Meat: ${this.inventory.meat}, Metal: ${this.inventory.metal}`;;
-    }
-};
-
 // Scene: This is the container for all our 3D objects.
 const scene = new THREE.Scene();
 // The background will be set by the skybox loader later.
@@ -251,17 +108,6 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Softer shadows
 document.body.appendChild(renderer.domElement);
-
-// --- CONTROLS ---
-
-// OrbitControls: Allows the camera to be manipulated with the mouse.
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.minDistance = 5;
-controls.maxDistance = 15;
-controls.enablePan = false;
-controls.maxPolarAngle = Math.PI / 2 - 0.05;
-controls.update();
 
 const textureLoader = new THREE.TextureLoader();
 
@@ -636,13 +482,14 @@ function placeDeer() {
 }
 
 var characterControls;
-gltfLoader.load('/static/models/Xbot.glb', (glb) => {
+gltfLoader.load('/static/models/animated_fps_axe.glb', (glb) => {
     const model = glb.scene;
 
     // Scale and position the model
     model.name = 'username';
     model.scale.set(2, 2, 2);
     model.position.set(0, 0, 0);
+    model.rotation.y = -Math.PI;
     model.traverse((obj) => {
         if (obj.isMesh) obj.castShadow = true;
     });
@@ -651,13 +498,11 @@ gltfLoader.load('/static/models/Xbot.glb', (glb) => {
     const gltfAnimations = glb.animations;
     const mixer = new THREE.AnimationMixer(model);
     const animationsMap = new Map();
-    gltfAnimations.filter(a => a.name != 'TPose').forEach((a) => {
+    gltfAnimations.forEach((a) => {
         animationsMap.set(a.name, mixer.clipAction(a));
     });
 
-    console.debug(gltfAnimations.map(anim => anim.name));
-
-    characterControls = new CharacterControls(model, mixer, animationsMap, controls, camera,  idle);
+    console.log(gltfAnimations.map(anim => anim.name));
 });
 
 // UI Utilities
@@ -747,7 +592,6 @@ function animate() {
         characterControls.update(mixerUpdateDelta, keyState);
         characterControls.updateHUD();
     }
-    controls.update();
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
 }
