@@ -12,7 +12,7 @@ class World {
         this.nonAnimals = [];
         this.objectBounds = []; // The boundaries for all objects
 
-        this.minDistance = 5; // The minimum distance between objects
+        this.minDistance = 10; // The minimum distance between objects
     }
 
     initEnvironment(scene, renderer) {

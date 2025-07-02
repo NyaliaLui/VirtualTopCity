@@ -3,7 +3,8 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { makeAnimal } from './Animal.js';
 import { Player } from './Player.js';
-import { mapBounds, gameBounds, cityBounds, distanceWithin } from './Utils.js';
+import { makeTree } from './Tree.js';
+import { mapBounds, gameBounds, cityBounds, distanceWithin, resourceRange } from './Utils.js';
 import { World } from './World.js';
 
 const roadWidth = 10;
@@ -173,12 +174,6 @@ gltfLoader.load('/static/models/low_poly_dock.glb', (glb) => {
     console.debug(docks.map((dock) => dock.position));
 });
 
-const resourceRange = {
-    meat: { min: 1, max: 5},
-    lumber: { min: 1, max: 5},
-    metal: { min: 1, max: 3}
-};
-
 class Boat {
     model;
 
@@ -214,37 +209,52 @@ gltfLoader.load('/static/models/ss_norrtelje_lowpoly.glb', (glb) => {
     world.nonAnimals.push(boat);
 });
 
-// // Forest env
-// const numTrees = {type1: 10, type2: 10};
+// Forest env
+// Add one tree with a random amount of lumber to drop
+const addTree = async function(name, glbPath, scaleV3, groundDist, scene) {
+    await makeTree(name, glbPath, scaleV3, groundDist, scene, world).then((tree) => {
+        world.animals.push(tree);
+    }, (err) => {
+        console.error(`Problem loading tree ${name}: ${err.stack}`);
+    });
+};
 
-// gltfLoader.load('/static/models/leaf_tree_-_ps1_low_poly.glb', (glb) => {
-//     const trees = Array.from({ length: numTrees.type1 }, () => (glb.scene.clone()));
-//     trees.forEach((tree) => { scene.add(tree); });
+const numTrees = 10;
+for (let i=0; i<numTrees; ++i) {
+    await addTree(`BigPine-${i}`, '/static/models/leaf_tree_-_ps1_low_poly.glb', new THREE.Vector3(1,1,1), 0, scene);
+    await addTree(`SmallPine-${i}`, '/static/models/pine_tree_01.glb', new THREE.Vector3(7,7,7), 3, scene);
+}
 
-//     const groundDist = 0;
-//     trees.forEach((tree) => {
-//         let pos = makePosition(world);
-//         tree.position.set(pos.x, groundDist, pos.z);
-//         tree.rotation.y = getRandomRotation();
-//         world.nonAnimals.push(tree);
-//     });
-//     console.debug(trees.map((tree) => tree.position));
-// });
+// Remove a tree from the scene and world after it dies
 
-// gltfLoader.load('/static/models/pine_tree_01.glb', (glb) => {
-//     const trees = Array.from({ length: numTrees.type2 }, () => (glb.scene.clone()));
-//     trees.forEach((tree) => { scene.add(tree); });
-//     const groundDist = 3;
+gltfLoader.load('/static/models/leaf_tree_-_ps1_low_poly.glb', (glb) => {
+    const trees = Array.from({ length: numTrees.type1 }, () => (glb.scene.clone()));
+    trees.forEach((tree) => { scene.add(tree); });
 
-//     trees.forEach((tree) => {
-//         tree.scale.set(7,7,7);
-//         let pos = makePosition(world);
-//         tree.position.set(pos.x, groundDist, pos.z);
-//         tree.rotation.y = getRandomRotation();
-//         world.nonAnimals.push(tree);
-//     });
-//     console.debug(trees.map((tree) => tree.position));
-// });
+    const groundDist = 0;
+    trees.forEach((tree) => {
+        let pos = makePosition(world);
+        tree.position.set(pos.x, groundDist, pos.z);
+        tree.rotation.y = getRandomRotation();
+        world.nonAnimals.push(tree);
+    });
+    console.debug(trees.map((tree) => tree.position));
+});
+
+gltfLoader.load('/static/models/pine_tree_01.glb', (glb) => {
+    const trees = Array.from({ length: numTrees.type2 }, () => (glb.scene.clone()));
+    trees.forEach((tree) => { scene.add(tree); });
+    const groundDist = 3;
+
+    trees.forEach((tree) => {
+        tree.scale.set(7,7,7);
+        let pos = makePosition(world);
+        tree.position.set(pos.x, groundDist, pos.z);
+        tree.rotation.y = getRandomRotation();
+        world.nonAnimals.push(tree);
+    });
+    console.debug(trees.map((tree) => tree.position));
+});
 
 // Animals
 const addAnimal = async function(name, glbPath, defaultAnimation, scaleV3, groundDist, scene) {
