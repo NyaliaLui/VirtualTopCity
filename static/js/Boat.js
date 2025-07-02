@@ -1,19 +1,22 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-import { getRandomInt, getRandomRotation, makePosition, resourceRange } from './Utils.js';
+import { getRandomInt, getRandomRotation, generateTrade, gameBounds } from './Utils.js';
 
-export { Tree, makeTree };
+export { boatInteractionDist, Boat, makeBoat };
 
-class Tree {
-    constructor(name, glbPath, scaleV3, position, scene) {
+const boatInteractionDist = 15;
+
+class Boat {
+    constructor(name, glbPath, position, scene) {
         this.name = name;
         this.glbPath_ = glbPath;
-        this.scaleV3_ = scaleV3;
         this.position_ = position;
         this.scene_ = scene;
         this.model = undefined;
-        this.lumber = getRandomInt(resourceRange.lumber.min, resourceRange.lumber.max+1);
+        let tradeOffer = generateTrade();
+        this.meatWanted = tradeOffer[0];
+        this.metalOffered = tradeOffer[1];
     }
 
     loadModel() {
@@ -22,10 +25,10 @@ class Tree {
             gltfLoader.load(this.glbPath_, (glb) => {
                 this.model = glb.scene;
                 this.model.name = this.name;
-                this.model.scale.copy(this.scaleV3_);
                 this.model.position.copy(this.position_);
-                this.model.rotation.y = getRandomRotation();
+                this.model.rotation.y = -Math.PI / 2;
                 this.scene_.add(this.model);
+                console.log(`boat pos ${this.model.position.x}, ${this.model.position.y}, ${this.model.position.z}`);
 
                 resolve(this);
             }, undefined, (err) => {
@@ -37,9 +40,7 @@ class Tree {
     update(timeElapsedS) {}
 };
 
-async function makeTree(name, glbPath, scaleV3, groundDist, scene, world) {
-    let pos = makePosition(world.animals, world.minDistance);
-    pos.y = groundDist;
-    const tree = new Tree(name, glbPath, scaleV3, pos, scene);
-    return tree.loadModel();
+async function makeBoat(name, glbPath, groundDist, scene) {
+    const boat = new Boat(name, glbPath, new THREE.Vector3(0, groundDist, gameBounds.left - 43), scene);
+    return boat.loadModel();
 }

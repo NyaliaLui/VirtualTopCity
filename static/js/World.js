@@ -9,6 +9,7 @@ export { World };
 class World {
     constructor() {
         this.animals = [];
+        this.boat = undefined;
         this.nonAnimals = [];
         this.objectBounds = []; // The boundaries for all objects
 
@@ -105,6 +106,11 @@ class World {
         this.animals.forEach((animal) => {
             addBox(animal.model, this.objectBounds);
         }, this);
+
+        if (this.boat) {
+            addBox(this.boat.model, this.objectBounds);
+        }
+
         this.nonAnimals.forEach((nonAnimal) => {
             addBox(nonAnimal, this.objectBounds);
         }, this);

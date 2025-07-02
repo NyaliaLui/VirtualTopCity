@@ -1,6 +1,20 @@
 import * as THREE from 'three';
 
-export { mapDims, mapBounds, gameBounds, playBounds, cityBounds, posTrees, resourceRange, getRandomInt, getRandomRotation, distanceWithin, addBox, makePosition };
+export {
+    mapDims,
+    mapBounds,
+    gameBounds,
+    playBounds,
+    cityBounds,
+    posTrees,
+    resourceRange,
+    getRandomInt,
+    getRandomRotation,
+    distanceWithin,
+    addBox,
+    makePosition,
+    generateTrade
+};
 
 const mapDims = {width: 500, height: 500};
 const mapBounds = {right: -250, left: 250, top: -200, bottom: 170};
@@ -36,8 +50,7 @@ function addBox(mesh, arr) {
     arr.push(b);
 }
 
-function makePosition(world) {
-    let existingPositions = world.animals;
+function makePosition(existingPositions, minDistance) {
     let temp = new THREE.Object3D();
     let isOverlapping;
 
@@ -47,9 +60,15 @@ function makePosition(world) {
 
         isOverlapping = existingPositions.some((existing) => {
             temp.position.y = existing.model.position.y;
-            return distanceWithin(existing.model, temp, world.minDistance);
+            return distanceWithin(existing.model, temp, minDistance);
         });
     } while (isOverlapping);
 
     return temp.position;
+}
+
+function generateTrade() {
+    let meatCount = getRandomInt(resourceRange.meat.min, resourceRange.meat.max);
+    let metalCount = getRandomInt(resourceRange.metal.min, resourceRange.metal.max);
+    return [meatCount, metalCount];
 }

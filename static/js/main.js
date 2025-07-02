@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { makeAnimal } from './Animal.js';
+import { boatInteractionDist, makeBoat } from './Boat.js';
 import { Player } from './Player.js';
 import { makeTree } from './Tree.js';
 import { mapBounds, gameBounds, cityBounds, distanceWithin, resourceRange } from './Utils.js';
@@ -174,43 +175,17 @@ gltfLoader.load('/static/models/low_poly_dock.glb', (glb) => {
     console.debug(docks.map((dock) => dock.position));
 });
 
-class Boat {
-    model;
-
-    isTrading = false;
-
-    meatWanted;
-    metalOffered;
-
-    constructor(model) {
-        this.model = model;
-        const tradeOffer = generateTrade(resourceRange.meat, resourceRange.metal);
-        this.meatWanted = tradeOffer[0];
-        this.metalOffered = tradeOffer[1];
-    }
+const addBoat = async function(name, glbPath, groundDist, scene) {
+    await makeBoat(name, glbPath, groundDist, scene).then((boat) => {
+        world.boat = boat;
+    }, (err) => {
+        console.error(`Problem loading ${name}: ${err.stack}`);
+    });
 };
 
-const boatInteractionDist = 15;
-var boats = [];
-gltfLoader.load('/static/models/ss_norrtelje_lowpoly.glb', (glb) => {
-    let boatSize = new THREE.Box3().setFromObject(glb.scene).getSize(new THREE.Vector3());
-    console.debug(boatSize);
-    const boat = glb.scene;
-
-    const groundDist = 0;
-    boat.position.x = 0;
-    boat.position.y = groundDist;
-    boat.position.z = gameBounds.left - 43;
-    boat.rotation.y = -Math.PI / 2;
-
-    scene.add(boat);
-    boat.name = `boat-1`;
-    boats.push(new Boat(boat));
-    world.nonAnimals.push(boat);
-});
+await addBoat('boat-1', '/static/models/ss_norrtelje_lowpoly.glb', 0, scene);
 
 // Forest env
-// Add one tree with a random amount of lumber to drop
 const addTree = async function(name, glbPath, scaleV3, groundDist, scene) {
     await makeTree(name, glbPath, scaleV3, groundDist, scene, world).then((tree) => {
         world.animals.push(tree);
@@ -226,35 +201,6 @@ for (let i=0; i<numTrees; ++i) {
 }
 
 // Remove a tree from the scene and world after it dies
-
-gltfLoader.load('/static/models/leaf_tree_-_ps1_low_poly.glb', (glb) => {
-    const trees = Array.from({ length: numTrees.type1 }, () => (glb.scene.clone()));
-    trees.forEach((tree) => { scene.add(tree); });
-
-    const groundDist = 0;
-    trees.forEach((tree) => {
-        let pos = makePosition(world);
-        tree.position.set(pos.x, groundDist, pos.z);
-        tree.rotation.y = getRandomRotation();
-        world.nonAnimals.push(tree);
-    });
-    console.debug(trees.map((tree) => tree.position));
-});
-
-gltfLoader.load('/static/models/pine_tree_01.glb', (glb) => {
-    const trees = Array.from({ length: numTrees.type2 }, () => (glb.scene.clone()));
-    trees.forEach((tree) => { scene.add(tree); });
-    const groundDist = 3;
-
-    trees.forEach((tree) => {
-        tree.scale.set(7,7,7);
-        let pos = makePosition(world);
-        tree.position.set(pos.x, groundDist, pos.z);
-        tree.rotation.y = getRandomRotation();
-        world.nonAnimals.push(tree);
-    });
-    console.debug(trees.map((tree) => tree.position));
-});
 
 // Animals
 const addAnimal = async function(name, glbPath, defaultAnimation, scaleV3, groundDist, scene) {
@@ -280,13 +226,6 @@ function showPopup(meatWanted, metalOffered) {
     document.getElementById('metalOffered').innerText = `Metal given: ${metalOffered}`;
 }
 
-// Generate a random trade offer
-function generateTrade(meatRange, metalRange) {
-    let meatCount = Math.floor(Math.random() * meatRange.max) + meatRange.min;
-    let metalCount = Math.floor(Math.random() * metalRange.max) + metalRange.min;
-    return [meatCount, metalCount];
-}
-
 function updateTradeUI(billboardMsg) {
     document.getElementById('billboard').innerText = billboardMsg;
     document.getElementById('decision-btns').style.display = 'none';
@@ -301,26 +240,20 @@ function resetTradeUI() {
 // Accept trade
 window.executeTrade = function () {
     // TODO(@NyaliaLui): This is an API call to get the boat that is trading with the user
-    let boat = boats.find((boat) => boat.isTrading);
-    if (!boat) {
+    if (!world.boat) {
         console.error('Failed to find the trading boat.');
         return;
     }
 
-    if (player.inventory.meat >= boat.meatWanted) {
-        player.inventory.meat -= boat.meatWanted;
-        player.inventory.metal += boat.metalOffered;
-        alert(`Trade accepted! You gave ${boat.meatWanted} meat and received ${boat.metalOffered} metal.`);
+    if (player.inventory.meat >= world.boat.meatWanted) {
+        player.inventory.meat -= world.boat.meatWanted;
+        player.inventory.metal += world.boat.metalOffered;
+        alert(`Trade accepted! You gave ${world.boat.meatWanted} meat and received ${world.boat.metalOffered} metal.`);
         resetTradeUI();
     } else {
         alert('Not enough meat to complete this trade.');
         resetTradeUI();
     }
-
-    // TODO(@NyaliaLui): This is an API call to set the boat trading flag
-    let index = boats.indexOf(boat);
-    if (index > -1) boats[index].isTrading = false;
-    else console.error('Could not find the trading boat. Was it deleted?');
 }
 
 // -- Player controls
@@ -334,12 +267,9 @@ document.addEventListener('keydown', (event) => {
     } else if (event.key === 'i') {
         // TODO(@NyaliaLui): This should be apart of the player controls which requires
         // the list of environment objects
-        boats.forEach((boat) => {
-            if (distanceWithin(player.model(), boat.model, boatInteractionDist)) {
-                boat.isTrading = true;
-                showPopup(boat.meatWanted, boat.metalOffered);
-            }
-        });
+        if (world.boat && distanceWithin(player.model(), world.boat.model, boatInteractionDist)) {
+            showPopup(world.boat.meatWanted, world.boat.metalOffered);
+        }
     }
 }, false);
 

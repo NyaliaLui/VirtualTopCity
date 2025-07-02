@@ -48,7 +48,7 @@ class Animal {
 };
 
 async function makeAnimal(name, glbPath, defaultAnimation, scaleV3, groundDist, scene, world) {
-    let pos = makePosition(world);
+    let pos = makePosition(world.animals, world.minDistance);
     pos.y = groundDist;
     const animal = new Animal(name, glbPath, defaultAnimation, scaleV3, pos, scene);
     return animal.loadModel();
