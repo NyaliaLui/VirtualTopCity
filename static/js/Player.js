@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-export {InputController, FirstPersonCamera, Player};
+export { InputController, FirstPersonCamera, Player };
 
 const KEYS = {
   'a': 65,

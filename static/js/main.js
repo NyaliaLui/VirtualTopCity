@@ -3,44 +3,40 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { Water } from 'three/addons/objects/Water.js';
+import { makeAnimal } from './Animal.js';
 import { Player } from './Player.js';
+import { mapDims, mapBounds, gameBounds, cityBounds, posTrees, getRandomInt, getRandomRotation } from './Utils.js';
 
 
 class World {
     constructor() {
-        this.meshes = [];
-        this.objects = [];
+        this.meshes = []; // All meshes, including animals
+        this.animals = []; // All animals
+        this.objects = []; // All objects
     }
 
     resetObjects() {
-        this.objects = [];
-        this.meshes.forEach((mesh) => {
+        const makeBox = function(mesh) {
             if (mesh) {
                 const b = new THREE.Box3();
                 b.setFromObject(mesh);
                 this.objects.push(b);
             }
+        };
+
+        this.objects = [];
+        this.meshes.forEach(makeBox);
+        this.animals.forEach(makeBox);
+    }
+
+    update(timeElapsedS) {
+        this.animals.forEach((animal) => {
+            animal.update(timeElapsedS);
         });
     }
 };
 
 const roadWidth = 10;
-const mapDims = {width: 500, height: 500};
-const mapBounds = {right: -250, left: 250, top: -200, bottom: 170};
-const gameBounds = {right: -100, left: 100, top: -100, bottom: 100};
-const playBounds = {right: gameBounds.right + 50, left: gameBounds.left - 50, top: gameBounds.top + 50, bottom: gameBounds.bottom - 50};
-const cityBounds = {right: gameBounds.right, left: playBounds.right, top: gameBounds.top, bottom: gameBounds.bottom};
-
-function getRandomInt(min, max) {
-  const minCeiled = Math.ceil(min);
-  const maxFloored = Math.floor(max);
-  return Math.floor(Math.random() * (maxFloored - minCeiled) + minCeiled); // The maximum is exclusive and the minimum is inclusive
-}
-
-function getRandomRotation() {
-    let denominator = [6,4,3,2];
-    return (- Math.PI / denominator[Math.floor(Math.random() * denominator.length)]);
-}
 
 // Scene: This is the container for all our 3D objects.
 const scene = new THREE.Scene();
@@ -347,7 +343,6 @@ function distanceWithin(src, dst, dist) {
 
 // Forest env
 const numTrees = {type1: 10, type2: 10};
-const posTrees = {left: playBounds.left - 5, right: playBounds.right + 5, top: playBounds.top, bottom: playBounds.bottom};
 
 gltfLoader.load('/static/models/leaf_tree_-_ps1_low_poly.glb', (glb) => {
     const trees = Array.from({ length: numTrees.type1 }, () => (glb.scene.clone()));
@@ -381,77 +376,17 @@ gltfLoader.load('/static/models/pine_tree_01.glb', (glb) => {
 });
 
 // Animals
-const bison = { scene: new THREE.Object3D(), animations: [], mixer: undefined};
-gltfLoader.load('/static/models/bison.glb', (glb) => {
-    bison.scene = glb.scene;
-    bison.scene.name = 'bison';
-    bison.scene.scale.set(0.5,0.5,0.5);
+const addAnimal = function(name, glbPath, defaultAnimation, scaleV3, groundDist, scene) {
+    makeAnimal(name, glbPath, defaultAnimation, scaleV3, groundDist, scene).then((animal) => {
+        world.animals.push(animal);
+    }, (err) => {
+        console.error(`Problem loading animal: ${err}`);
+    });
+};
 
-    bison.animations = glb.animations;
-    bison.mixer = new THREE.AnimationMixer(bison.scene);
-    placeBison();
-    world.meshes.push(bison.scene);
-
-    console.debug(bison.animations.map(anim => anim.name));
-});
-
-const fox = {scene: new THREE.Object3D(), animations: [], mixer: undefined};
-gltfLoader.load('/static/models/fox.glb', (glb) => {
-    fox.scene = glb.scene;
-    fox.scene.name = 'fox';
-    fox.scene.scale.set(300,300,300);
-
-    fox.animations = glb.animations;
-    fox.mixer = new THREE.AnimationMixer(fox.scene);
-    placeFox();
-    world.meshes.push(fox.scene);
-
-    console.debug(fox.animations.map(anim => anim.name));
-});
-
-const deer = {scene: new THREE.Object3D(), animations: [], mixer: undefined};
-gltfLoader.load('/static/models/animated_low_poly_deer_game_ready.glb', (glb) => {
-    deer.scene = glb.scene;
-    deer.scene.name = 'deer';
-
-    deer.animations = glb.animations;
-    deer.mixer = new THREE.AnimationMixer(deer.scene);
-    placeDeer();
-    world.meshes.push(deer.scene);
-
-    console.debug(deer.animations.map(anim => anim.name));
-});
-
-function placeBison() {
-    const groundDist = 3;
-    bison.scene.position.x = getRandomInt(posTrees.top, posTrees.bottom);
-    bison.scene.position.y = groundDist;
-    bison.scene.position.z = getRandomInt(posTrees.right, posTrees.left);
-    bison.scene.rotation.y = getRandomRotation();
-    scene.add(bison.scene);
-}
-
-function placeFox() {
-    // let foxSize = new THREE.Box3().setFromObject(glb.scene).getSize(new THREE.Vector3());
-    // console.debug(foxSize);
-    const groundDist = 0;
-    fox.scene.position.x = getRandomInt(posTrees.top, posTrees.bottom);
-    fox.scene.position.y = groundDist;
-    fox.scene.position.z = getRandomInt(posTrees.right, posTrees.left);
-    fox.scene.rotation.y = getRandomRotation();
-    scene.add(fox.scene);
-}
-
-function placeDeer() {
-    // let deerSize = new THREE.Box3().setFromObject(glb.scene).getSize(new THREE.Vector3());
-    // console.debug(deerSize);
-    const groundDist = 0;
-    deer.scene.position.x = getRandomInt(posTrees.top, posTrees.bottom);
-    deer.scene.position.y = groundDist;
-    deer.scene.position.z = getRandomInt(posTrees.right, posTrees.left);
-    deer.scene.rotation.y = getRandomRotation();
-    scene.add(deer.scene);
-}
+addAnimal('bison', '/static/models/bison.glb', 'ArmatureAction', new THREE.Vector3(0.5,0.5,0.5), 3, scene);
+addAnimal('fox', '/static/models/fox.glb', 'idle', new THREE.Vector3(300,300,300), 0, scene);
+addAnimal('deer', '/static/models/animated_low_poly_deer_game_ready.glb', 'Take 001', new THREE.Vector3(1,1,1), 0, scene);
 
 world.resetObjects();
 const player = new Player(scene, camera, world);
@@ -532,6 +467,7 @@ document.addEventListener('keydown', (event) => {
 const clock = new THREE.Clock();
 function animate() {
     const timeElapsedS = clock.getDelta();
+    world.update(timeElapsedS);
     player.update(timeElapsedS);
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
