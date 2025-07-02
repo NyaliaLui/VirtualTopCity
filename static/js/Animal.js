@@ -1,19 +1,17 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-import { posTrees, getRandomInt, getRandomRotation } from './Utils.js';
+import { posTrees, getRandomRotation, makePosition } from './Utils.js';
 
 export { Animal, makeAnimal };
 
-const gltfLoader = new GLTFLoader();
-
 class Animal {
-    constructor(name, glbPath, defaultAnimation, scaleV3, groundDist, scene) {
+    constructor(name, glbPath, defaultAnimation, scaleV3, position, scene) {
         this.name = name;
         this.glbPath_ = glbPath;
         this.defaultAnimation_ = defaultAnimation;
         this.scaleV3_ = scaleV3;
-        this.groundDist_ = groundDist;
+        this.position_ = position;
         this.scene_ = scene;
         this.model = undefined;
         this.mixer_ = undefined;
@@ -21,26 +19,24 @@ class Animal {
 
     loadModel() {
         return new Promise((resolve, reject) => {
+            let gltfLoader = new GLTFLoader();
             gltfLoader.load(this.glbPath_, (glb) => {
                 this.model = glb.scene;
                 this.model.name = this.name;
                 this.model.scale.copy(this.scaleV3_);
-                this.model.position.x = getRandomInt(posTrees.top, posTrees.bottom);
-                this.model.position.y = this.groundDist_;
-                this.model.position.z = getRandomInt(posTrees.right, posTrees.left);
+                this.model.position.copy(this.position_);
                 this.model.rotation.y = getRandomRotation();
                 this.scene_.add(this.model);
 
                 this.mixer_ = new THREE.AnimationMixer(this.model);
                 console.log(glb.animations.map((animation) => animation.name));
-                const animation = glb.animations.find((animation) => animation.name == this.defaultAnimation_);
-                const action = this.mixer_.clipAction(animation); // Assuming idle is first
+                let animation = glb.animations.find((animation) => animation.name == this.defaultAnimation_);
+                let action = this.mixer_.clipAction(animation); // Assuming idle is first
                 action.play();
+                resolve(this);
             }, undefined, (err) => {
                 reject(err);
             });
-
-            resolve(this);
         });
     }
 
@@ -51,7 +47,9 @@ class Animal {
     }
 };
 
-function makeAnimal(name, glbPath, defaultAnimation, scaleV3, groundDist, scene) {
-    const animal = new Animal(name, glbPath, defaultAnimation, scaleV3, groundDist, scene);
+async function makeAnimal(name, glbPath, defaultAnimation, scaleV3, groundDist, scene, world) {
+    let pos = makePosition(world);
+    pos.y = groundDist;
+    const animal = new Animal(name, glbPath, defaultAnimation, scaleV3, pos, scene);
     return animal.loadModel();
 }

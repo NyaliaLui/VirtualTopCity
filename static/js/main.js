@@ -1,40 +1,10 @@
 // Import necessary modules from Three.js via the importmap
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { Sky } from 'three/addons/objects/Sky.js';
-import { Water } from 'three/addons/objects/Water.js';
 import { makeAnimal } from './Animal.js';
 import { Player } from './Player.js';
-import { mapDims, mapBounds, gameBounds, cityBounds, posTrees, getRandomInt, getRandomRotation } from './Utils.js';
-
-
-class World {
-    constructor() {
-        this.meshes = []; // All meshes, including animals
-        this.animals = []; // All animals
-        this.objects = []; // All objects
-    }
-
-    resetObjects() {
-        const makeBox = function(mesh) {
-            if (mesh) {
-                const b = new THREE.Box3();
-                b.setFromObject(mesh);
-                this.objects.push(b);
-            }
-        };
-
-        this.objects = [];
-        this.meshes.forEach(makeBox);
-        this.animals.forEach(makeBox);
-    }
-
-    update(timeElapsedS) {
-        this.animals.forEach((animal) => {
-            animal.update(timeElapsedS);
-        });
-    }
-};
+import { mapBounds, gameBounds, cityBounds, distanceWithin } from './Utils.js';
+import { World } from './World.js';
 
 const roadWidth = 10;
 
@@ -55,98 +25,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Softer shadows
 document.body.appendChild(renderer.domElement);
 
 const world = new World();
-
-const textureLoader = new THREE.TextureLoader();
-
-const waterHeight = 100;
-const waterGeometry = new THREE.PlaneGeometry(mapDims.width, waterHeight);
-const water = new Water(
-    waterGeometry,
-    {
-        textureWidth: mapDims.width,
-        textureHeight: waterHeight,
-        waterNormals: textureLoader.load('/static/textures/waternormals.jpg', (texture) => {
-            texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-        }),
-        sunDirection: new THREE.Vector3(),
-        sunColor: 0xffffff,
-        waterColor: 0x001e0f,
-        distortionScale: 3.7,
-        fog: scene.fog !== undefined
-    }
-);
-water.rotation.x = - Math.PI / 2;
-water.position.z = gameBounds.left;
-scene.add(water);
-
-let sun = new THREE.Vector3();
-const sky = new Sky();
-sky.scale.setScalar(10000);
-scene.add(sky);
-
-const skyUniforms = sky.material.uniforms;
-
-skyUniforms[ 'turbidity' ].value = 10;
-skyUniforms[ 'rayleigh' ].value = 2;
-skyUniforms[ 'mieCoefficient' ].value = 0.005;
-skyUniforms[ 'mieDirectionalG' ].value = 0.8;
-
-const parameters = {
-    elevation: 2,
-    azimuth: 180
-};
-
-const pmremGenerator = new THREE.PMREMGenerator( renderer );
-const sceneEnv = new THREE.Scene();
-
-let renderTarget;
-
-function updateSun() {
-
-    const phi = THREE.MathUtils.degToRad( 90 - parameters.elevation );
-    const theta = THREE.MathUtils.degToRad( parameters.azimuth );
-
-    sun.setFromSphericalCoords( 1, phi, theta );
-
-    sky.material.uniforms[ 'sunPosition' ].value.copy( sun );
-    water.material.uniforms[ 'sunDirection' ].value.copy( sun ).normalize();
-
-    if ( renderTarget !== undefined ) renderTarget.dispose();
-
-    sceneEnv.add( sky );
-    renderTarget = pmremGenerator.fromScene( sceneEnv );
-    scene.add( sky );
-
-    scene.environment = renderTarget.texture;
-
-}
-updateSun();
-
-textureLoader.load('/static/textures/grass.jpg', (grassTexture) => {
-  grassTexture.wrapS = grassTexture.wrapT = THREE.RepeatWrapping;
-
-  const groundGeometry = new THREE.PlaneGeometry(mapDims.width, waterHeight);
-  const groundMaterial = new THREE.MeshStandardMaterial({ map: grassTexture });
-  const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-  ground.rotation.x = -Math.PI / 2;
-  ground.position.y = 0;
-  ground.position.z = 0;
-
-  scene.add(ground);
-});
-
-textureLoader.load('/static/textures/dirt.jpg', (dirtTexture) => {
-  dirtTexture.wrapS = dirtTexture.wrapT = THREE.MirroredRepeatWrapping;
-
-  const dirtGeometry = new THREE.PlaneGeometry(mapDims.width, waterHeight);
-  const dirtMaterial = new THREE.MeshStandardMaterial({ map: dirtTexture });
-  const dirt = new THREE.Mesh(dirtGeometry, dirtMaterial);
-  dirt.rotation.x = -Math.PI / 2;
-  dirt.position.y = 0;
-  dirt.position.z = gameBounds.right;
-
-  scene.add(dirt);
-});
+world.initEnvironment(scene, renderer);
 
 // --- OBJECTS ---
 
@@ -171,7 +50,7 @@ gltfLoader.load('/static/models/mega_moduler_apartment_building.glb', (glb) => {
         if (index == 0) building.position.x = mapBounds.top;
         else building.position.x = buildings[index-1].position.x + buildingSize.x + roadWidth;
 
-        world.meshes.push(building);
+        world.nonAnimals.push(building);
     });
 });
 
@@ -197,7 +76,7 @@ gltfLoader.load('/static/models/mega_moduler_apartment_building.glb', (glb) => {
 
         building.name = `front-building-${index}`;
 
-        world.meshes.push(building);
+        world.nonAnimals.push(building);
 
         if (index >= removableBuildingsRange.min && index <= removableBuildingsRange.max) {
             removableBuildings.push(building.name);
@@ -211,9 +90,9 @@ function removeBuildings(names) {
         scene.remove(building);
 
         // Mark removed buildings for removal
-        let index = world.meshes.indexOf(building);
+        let index = world.nonAnimals.indexOf(building);
         if (index > -1) {
-            world.meshes[index] = undefined;
+            world.nonAnimals[index] = undefined;
         }
     });
 }
@@ -227,7 +106,7 @@ function loadTrainStation() {
 
         const groundDist = 24;
         station.position.set(0, groundDist, cityBounds.left - 65);
-        world.meshes.push(station);
+        world.nonAnimals.push(station);
     });
 
     gltfLoader.load('/static/models/rail_long.glb', (glb) => {
@@ -253,7 +132,7 @@ function loadTrainStation() {
             // position by the Z size.
             if (index == 0) rail.position.x = -30;
             else rail.position.x = rails[index-1].position.x + railSize.z + 3;
-            world.meshes.push(rail);
+            world.nonAnimals.push(rail);
         });
         console.debug(rails.map((rail) => rail.position));
     });
@@ -264,7 +143,7 @@ function loadTrainStation() {
         scene.add(train);
         train.position.set(0, 0.2, cityBounds.left - 8);
         train.rotation.y = -Math.PI / 2;
-        world.meshes.push(train);
+        world.nonAnimals.push(train);
     });
 }
 
@@ -289,7 +168,7 @@ gltfLoader.load('/static/models/low_poly_dock.glb', (glb) => {
         // position by the Z size.
         if (index == 0) dock.position.x = gameBounds.top;
         else dock.position.x = docks[index-1].position.x + dockSize.z;
-        world.meshes.push(dock);
+        world.nonAnimals.push(dock);
     });
     console.debug(docks.map((dock) => dock.position));
 });
@@ -332,63 +211,55 @@ gltfLoader.load('/static/models/ss_norrtelje_lowpoly.glb', (glb) => {
     scene.add(boat);
     boat.name = `boat-1`;
     boats.push(new Boat(boat));
-    world.meshes.push(boat);
+    world.nonAnimals.push(boat);
 });
 
-function distanceWithin(src, dst, dist) {
-    const distance = src.position.distanceTo(dst.position);
-    console.debug(`src: ${src.name}, dst: ${dst.name}, distance ${distance}`);
-    return distance <= dist;
-}
+// // Forest env
+// const numTrees = {type1: 10, type2: 10};
 
-// Forest env
-const numTrees = {type1: 10, type2: 10};
+// gltfLoader.load('/static/models/leaf_tree_-_ps1_low_poly.glb', (glb) => {
+//     const trees = Array.from({ length: numTrees.type1 }, () => (glb.scene.clone()));
+//     trees.forEach((tree) => { scene.add(tree); });
 
-gltfLoader.load('/static/models/leaf_tree_-_ps1_low_poly.glb', (glb) => {
-    const trees = Array.from({ length: numTrees.type1 }, () => (glb.scene.clone()));
-    trees.forEach((tree) => { scene.add(tree); });
+//     const groundDist = 0;
+//     trees.forEach((tree) => {
+//         let pos = makePosition(world);
+//         tree.position.set(pos.x, groundDist, pos.z);
+//         tree.rotation.y = getRandomRotation();
+//         world.nonAnimals.push(tree);
+//     });
+//     console.debug(trees.map((tree) => tree.position));
+// });
 
-    const groundDist = 0;
-    trees.forEach((tree) => {
-        tree.position.x = getRandomInt(posTrees.top, posTrees.bottom);
-        tree.position.y = groundDist;
-        tree.position.z = getRandomInt(posTrees.right, posTrees.left);
-        tree.rotation.y = getRandomRotation();
-        world.meshes.push(tree);
-    });
-    console.debug(trees.map((tree) => tree.position));
-});
+// gltfLoader.load('/static/models/pine_tree_01.glb', (glb) => {
+//     const trees = Array.from({ length: numTrees.type2 }, () => (glb.scene.clone()));
+//     trees.forEach((tree) => { scene.add(tree); });
+//     const groundDist = 3;
 
-gltfLoader.load('/static/models/pine_tree_01.glb', (glb) => {
-    const trees = Array.from({ length: numTrees.type2 }, () => (glb.scene.clone()));
-    trees.forEach((tree) => { scene.add(tree); });
-    const groundDist = 3;
-
-    trees.forEach((tree) => {
-        tree.scale.set(7,7,7);
-        tree.position.x = getRandomInt(posTrees.top, posTrees.bottom);
-        tree.position.y = groundDist;
-        tree.position.z = getRandomInt(posTrees.right, posTrees.left);
-        tree.rotation.y = getRandomRotation();
-        world.meshes.push(tree);
-    });
-    console.debug(trees.map((tree) => tree.position));
-});
+//     trees.forEach((tree) => {
+//         tree.scale.set(7,7,7);
+//         let pos = makePosition(world);
+//         tree.position.set(pos.x, groundDist, pos.z);
+//         tree.rotation.y = getRandomRotation();
+//         world.nonAnimals.push(tree);
+//     });
+//     console.debug(trees.map((tree) => tree.position));
+// });
 
 // Animals
-const addAnimal = function(name, glbPath, defaultAnimation, scaleV3, groundDist, scene) {
-    makeAnimal(name, glbPath, defaultAnimation, scaleV3, groundDist, scene).then((animal) => {
+const addAnimal = async function(name, glbPath, defaultAnimation, scaleV3, groundDist, scene) {
+    await makeAnimal(name, glbPath, defaultAnimation, scaleV3, groundDist, scene, world).then((animal) => {
         world.animals.push(animal);
     }, (err) => {
-        console.error(`Problem loading animal: ${err}`);
+        console.error(`Problem loading animal ${name}: ${err.stack}`);
     });
 };
 
-addAnimal('bison', '/static/models/bison.glb', 'ArmatureAction', new THREE.Vector3(0.5,0.5,0.5), 3, scene);
-addAnimal('fox', '/static/models/fox.glb', 'idle', new THREE.Vector3(300,300,300), 0, scene);
-addAnimal('deer', '/static/models/animated_low_poly_deer_game_ready.glb', 'Take 001', new THREE.Vector3(1,1,1), 0, scene);
+await addAnimal('bison', '/static/models/bison.glb', 'ArmatureAction', new THREE.Vector3(0.5,0.5,0.5), 3, scene);
+await addAnimal('fox', '/static/models/fox.glb', 'idle', new THREE.Vector3(300,300,300), 0, scene);
+await addAnimal('deer', '/static/models/animated_low_poly_deer_game_ready.glb', 'Take 001', new THREE.Vector3(1,1,1), 0, scene);
 
-world.resetObjects();
+world.resetBounds();
 const player = new Player(scene, camera, world);
 
 // UI Utilities
@@ -449,7 +320,7 @@ document.addEventListener('keydown', (event) => {
         // when the max resources are collected.
         removeBuildings(removableBuildings);
         loadTrainStation();
-        world.resetObjects();
+        world.resetBounds();
     } else if (event.key === 'i') {
         // TODO(@NyaliaLui): This should be apart of the player controls which requires
         // the list of environment objects

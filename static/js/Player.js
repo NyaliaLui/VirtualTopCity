@@ -208,8 +208,8 @@ class FirstPersonCamera {
     let closest = forward;
     const result = new THREE.Vector3();
     const ray = new THREE.Ray(this.translation_, dir);
-    this.world_.objects.forEach((object) => {
-        if (ray.intersectBox(object, result)) {
+    this.world_.objectBounds.forEach((bounds) => {
+        if (ray.intersectBox(bounds, result)) {
             if (result.distanceTo(ray.origin) < closest.distanceTo(ray.origin)) {
                 closest = result.clone();
             }
