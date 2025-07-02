@@ -29,7 +29,7 @@ class Animal {
                 this.scene_.add(this.model);
 
                 this.mixer_ = new THREE.AnimationMixer(this.model);
-                console.log(glb.animations.map((animation) => animation.name));
+                console.debug(glb.animations.map((animation) => animation.name));
                 let animation = glb.animations.find((animation) => animation.name == this.defaultAnimation_);
                 let action = this.mixer_.clipAction(animation); // Assuming idle is first
                 action.play();

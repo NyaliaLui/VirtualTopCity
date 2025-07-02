@@ -1,10 +1,11 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { Water } from 'three/addons/objects/Water.js';
 
 import { mapDims, gameBounds, addBox } from './Utils.js';
 
-export { World };
+export { World, makeDocks };
 
 class World {
     constructor() {
@@ -99,6 +100,8 @@ class World {
 
             scene.add(dirt);
         });
+
+        makeDocks('/static/models/low_poly_dock.glb', scene, this);
     }
 
     resetBounds() {
@@ -112,7 +115,9 @@ class World {
         }
 
         this.nonAnimals.forEach((nonAnimal) => {
-            addBox(nonAnimal, this.objectBounds);
+            if (nonAnimal) {
+                addBox(nonAnimal, this.objectBounds);
+            }
         }, this);
     }
 
@@ -122,3 +127,31 @@ class World {
         });
     }
 };
+
+function makeDocks(glbPath, scene, world) {
+    let gltfLoader = new GLTFLoader();
+    gltfLoader.load(glbPath, (glb) => {
+        let dockSize = new THREE.Box3().setFromObject(glb.scene).getSize(new THREE.Vector3());
+        console.debug(dockSize);
+        const numDocks = Math.floor((gameBounds.bottom - gameBounds.top) / dockSize.z);
+        console.log(`num docks: ${numDocks}`);
+        const docks = Array.from({ length: numDocks }, () => (glb.scene.clone()));
+        docks.forEach((dock) => { scene.add(dock); });
+
+        const groundDist = -2;
+        // All docks are set at the border of the river and forest.
+        docks.forEach((dock, index) => {
+            dock.position.z = gameBounds.left - 50;
+            dock.position.y = groundDist;
+            dock.rotation.y = - Math.PI / 2;
+
+            // The docks are originally loaded horizontal compared to the original scene
+            // and we rotate the object 90 degrees (pi/2). This means we must adjust the x
+            // position by the Z size.
+            if (index == 0) dock.position.x = gameBounds.top;
+            else dock.position.x = docks[index-1].position.x + dockSize.z;
+            world.nonAnimals.push(dock);
+        });
+        console.debug(docks.map((dock) => dock.position));
+    });
+}

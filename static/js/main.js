@@ -6,7 +6,7 @@ import { boatInteractionDist, makeBoat } from './Boat.js';
 import { Player } from './Player.js';
 import { makeTree } from './Tree.js';
 import { mapBounds, gameBounds, cityBounds, distanceWithin, resourceRange } from './Utils.js';
-import { World } from './World.js';
+import { World, makeDocks } from './World.js';
 
 const roadWidth = 10;
 
@@ -150,31 +150,6 @@ function loadTrainStation() {
 }
 
 // River env
-gltfLoader.load('/static/models/low_poly_dock.glb', (glb) => {
-    let dockSize = new THREE.Box3().setFromObject(glb.scene).getSize(new THREE.Vector3());
-    console.debug(dockSize);
-    const numDocks = Math.floor((gameBounds.bottom - gameBounds.top) / dockSize.z);
-    console.debug(numDocks);
-    const docks = Array.from({ length: numDocks }, () => (glb.scene.clone()));
-    docks.forEach((dock) => { scene.add(dock); });
-
-    const groundDist = -2;
-    // All docks are set at the border of the river and forest.
-    docks.forEach((dock, index) => {
-        dock.position.z = gameBounds.left - 50;
-        dock.position.y = groundDist;
-        dock.rotation.y = - Math.PI / 2;
-
-        // The docks are originally loaded horizontal compared to the original scene
-        // and we rotate the object 90 degrees (pi/2). This means we must adjust the x
-        // position by the Z size.
-        if (index == 0) dock.position.x = gameBounds.top;
-        else dock.position.x = docks[index-1].position.x + dockSize.z;
-        world.nonAnimals.push(dock);
-    });
-    console.debug(docks.map((dock) => dock.position));
-});
-
 const addBoat = async function(name, glbPath, groundDist, scene) {
     await makeBoat(name, glbPath, groundDist, scene).then((boat) => {
         world.boat = boat;
@@ -265,8 +240,6 @@ document.addEventListener('keydown', (event) => {
         loadTrainStation();
         world.resetBounds();
     } else if (event.key === 'i') {
-        // TODO(@NyaliaLui): This should be apart of the player controls which requires
-        // the list of environment objects
         if (world.boat && distanceWithin(player.model(), world.boat.model, boatInteractionDist)) {
             showPopup(world.boat.meatWanted, world.boat.metalOffered);
         }
