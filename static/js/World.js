@@ -143,7 +143,6 @@ function makeDocks(scene, world) {
     let gltfLoader = new GLTFLoader();
     gltfLoader.load('/static/models/low_poly_dock.glb', (glb) => {
         let dockSize = new THREE.Box3().setFromObject(glb.scene).getSize(new THREE.Vector3());
-        console.debug(dockSize);
         let numDocks = Math.floor((gameBounds.bottom - gameBounds.top) / dockSize.z);
         let docks = Array.from({ length: numDocks }, () => (glb.scene.clone()));
         docks.forEach((dock) => { scene.add(dock); });
@@ -162,7 +161,6 @@ function makeDocks(scene, world) {
             else dock.position.x = docks[index-1].position.x + dockSize.z;
             world.nonAnimals.push(dock);
         });
-        console.debug(docks.map((dock) => dock.position));
     });
 }
 
@@ -171,9 +169,7 @@ function makeBuildings(scene, world) {
     let roadWidth = 10;
     gltfLoader.load('/static/models/mega_moduler_apartment_building.glb', (glb) => {
         let buildingSize = new THREE.Box3().setFromObject(glb.scene).getSize(new THREE.Vector3());
-        console.debug(buildingSize);
         let numBuildings = Math.floor((mapBounds.bottom - mapBounds.top) / buildingSize.x);
-        console.debug(numBuildings);
         let buildings = Array.from({ length: numBuildings }, () => (glb.scene.clone()));
         buildings.forEach((building) => { scene.add(building); });
         
@@ -193,9 +189,7 @@ function makeBuildings(scene, world) {
     // Front row of buildings
     gltfLoader.load('/static/models/mega_moduler_apartment_building.glb', (glb) => {
         let buildingSize = new THREE.Box3().setFromObject(glb.scene).getSize(new THREE.Vector3());
-        console.debug(buildingSize);
         let numBuildings = Math.floor((mapBounds.bottom - mapBounds.top) / buildingSize.x);
-        console.debug(numBuildings);
         let buildings = Array.from({ length: numBuildings }, () => (glb.scene.clone()));
         buildings.forEach((building) => { scene.add(building); });
         
@@ -240,7 +234,6 @@ function loadTrainStation(scene, world) {
     gltfLoader.load('/static/models/mount_royal_train_station.glb', (glb) => {
         let station = glb.scene;
         let stationSize = new THREE.Box3().setFromObject(glb.scene).getSize(new THREE.Vector3());
-        console.debug(stationSize);
         scene.add(station);
 
         let groundDist = 24;
@@ -250,9 +243,7 @@ function loadTrainStation(scene, world) {
 
     gltfLoader.load('/static/models/rail_long.glb', (glb) => {
         let railSize = new THREE.Box3().setFromObject(glb.scene).getSize(new THREE.Vector3());
-        console.debug(railSize);
         let numRails = 8;
-        console.debug(numRails);
         let rails = Array.from({ length: numRails }, () => (glb.scene.clone()));
         rails.forEach((rail) => { 
             rail.scale.set(5,2,2);
@@ -273,7 +264,6 @@ function loadTrainStation(scene, world) {
             else rail.position.x = rails[index-1].position.x + railSize.z + 3;
             world.nonAnimals.push(rail);
         });
-        console.debug(rails.map((rail) => rail.position));
     });
 
     gltfLoader.load('/static/models/train.glb', (glb) => {
