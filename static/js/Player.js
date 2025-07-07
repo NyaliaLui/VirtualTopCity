@@ -365,11 +365,11 @@ class Player {
             if (playerBox.intersectsBox(obj.boundingBox) && 'health' in obj) {
                 // At this point, obj should be either an Animal or Tree since they
                 // are the only ones with a health property.
-                console.log(`Player ${this.model().name} hit ${obj.name}!`);
+                console.debug(`Player ${this.model().name} hit ${obj.name}!`);
                 obj.health -= 1;
 
                 if (obj.health <= 0) {
-                  console.log(`${obj.name} is destroyed!`);
+                  console.debug(`${obj.name} is destroyed!`);
                   obj.editInventory(this.inventory);
                   this.scene_.remove(obj.model);
                   let animalIndex = this.world_.animals.indexOf(obj);

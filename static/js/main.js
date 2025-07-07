@@ -8,7 +8,7 @@ import { distanceWithin, lvlCompletePopup, updateHUD } from './Utils.js';
 import { World, removeBuildings, loadTrainStation } from './World.js';
 
 function addBoat(name, scene, world) {
-    makeBoat(name, '/static/models/ss_norrtelje_lowpoly.glb', 0, scene).then((boat) => {
+    return makeBoat(name, '/static/models/ss_norrtelje_lowpoly.glb', 0, scene).then((boat) => {
         world.boat = boat;
     }, (err) => {
         console.error(`Problem loading ${name}: ${err.stack}`);
@@ -16,7 +16,7 @@ function addBoat(name, scene, world) {
 };
 
 function addTree(name, scene, world) {
-    makeTree(name, '/static/models/leaf_tree_-_ps1_low_poly.glb', new THREE.Vector3(1, 1, 1), 0, scene, world).then((tree) => {
+    return makeTree(name, '/static/models/leaf_tree_-_ps1_low_poly.glb', new THREE.Vector3(1, 1, 1), 0, scene, world).then((tree) => {
         world.animals.push(tree);
     }, (err) => {
         console.error(`Problem loading tree ${name}: ${err.stack}`);
@@ -24,7 +24,7 @@ function addTree(name, scene, world) {
 };
 
 function addAnimal(name, glbPath, defaultAnimation, meat, health, scaleV3, groundDist, scene, world) {
-    makeAnimal(name, glbPath, defaultAnimation, meat, health, scaleV3, groundDist, scene, world).then((animal) => {
+    return makeAnimal(name, glbPath, defaultAnimation, meat, health, scaleV3, groundDist, scene, world).then((animal) => {
         world.animals.push(animal);
     }, (err) => {
         console.error(`Problem loading animal ${name}: ${err.stack}`);
@@ -32,18 +32,21 @@ function addAnimal(name, glbPath, defaultAnimation, meat, health, scaleV3, groun
 };
 
 function addObjects(scene, world) {
+    let objProms = [];
     // River env
-    addBoat('boat-1', scene, world);
+    objProms.push(addBoat('boat-1', scene, world));
 
     // Forest env
     for (let i = 0; i < numTrees; ++i) {
-        addTree(`Pine-${i}`, scene, world);
+        objProms.push(addTree(`Pine-${i}`, scene, world));
     }
 
     // Animals
-    addAnimal('bison', '/static/models/bison.glb', 'ArmatureAction', 3, 5, new THREE.Vector3(0.5, 0.5, 0.5), 3, scene, world);
-    addAnimal('fox', '/static/models/fox.glb', 'idle', 1, 1, new THREE.Vector3(300, 300, 300), 0, scene, world);
-    addAnimal('deer', '/static/models/animated_low_poly_deer_game_ready.glb', 'Take 001', 2, 3, new THREE.Vector3(1, 1, 1), 0, scene, world);
+    objProms.push(addAnimal('bison', '/static/models/bison.glb', 'ArmatureAction', 3, 5, new THREE.Vector3(0.5, 0.5, 0.5), 3, scene, world));
+    objProms.push(addAnimal('fox', '/static/models/fox.glb', 'idle', 1, 1, new THREE.Vector3(300, 300, 300), 0, scene, world));
+    objProms.push(addAnimal('deer', '/static/models/animated_low_poly_deer_game_ready.glb', 'Take 001', 2, 3, new THREE.Vector3(1, 1, 1), 0, scene, world));
+
+    return Promise.all(objProms);
 }
 
 // UI Utilities
@@ -64,7 +67,7 @@ function isLevelDone(player, winCondition, levelFin, scene, world) {
         return true;
     }
 
-    if (JSON.stringify(player.inventory) == JSON.stringify(winCondition)) {
+    if (player.inventory.meat >= winCondition.meat && player.inventory.lumber >= winCondition.lumber && player.inventory.metal >= winCondition.metal) {
         removeBuildings(scene, world);
         loadTrainStation(scene, world);
         world.resetBounds();
@@ -82,31 +85,22 @@ const scene = new THREE.Scene();
 
 // Camera: This defines our point of view.\
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.copy(cameraOrigin); // Adjusted camera position for a better view
 
 // Renderer: This is what draws the scene onto the canvas.
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-// Enable shadow mapping in the renderer
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Softer shadows
-document.body.appendChild(renderer.domElement);
 
 const numTrees = 10;
 let levelFin = false;
 let isFocused = false;
 let winCondition = {
     meat: 10,
-    lumber: 0, // number of trees * (random range of [min, max])
+    lumber: 10, // number of trees * (random range of [min, max])
     metal: 100 // number of boats * 100
 };
 
-let world = new World();
-world.initEnvironment(scene, renderer);
-addObjects(scene, world);
-world.resetBounds();
-let player = new Player(scene, camera, world);
-updateHUD(player, winCondition);
+let world = undefined;
+let player = undefined;
+let clock = new THREE.Clock();
 
 // Accept trade
 window.executeTrade = function () {
@@ -137,7 +131,6 @@ document.addEventListener('keydown', (event) => {
 
 // --- ANIMATION LOOP ---
 
-const clock = new THREE.Clock();
 function animate() {
     const timeElapsedS = clock.getDelta();
     world.update(timeElapsedS);
@@ -162,6 +155,34 @@ window.addEventListener('resize', () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// Start the animation loop!
-animate();
-resetTradeUI();
+let init = new Promise((resolve, reject) => {
+    try {
+        camera.position.copy(cameraOrigin); // Adjusted camera position for a better view
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        // Enable shadow mapping in the renderer
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Softer shadows
+        document.body.appendChild(renderer.domElement);
+        resolve(true);
+    } catch (error) {
+        reject(error);   
+    }
+});
+
+init.then((_) => {
+    // Init world
+    world = new World();
+    world.initEnvironment(scene, renderer);
+    return addObjects(scene, world);
+}, (err) => {
+    console.error(`Problem initializing WebGL - ${err}`);
+}).then((_) => {
+    // Init Player
+    world.resetBounds();
+    player = new Player(scene, camera, world);
+    updateHUD(player, winCondition);
+}).then((_) => {
+    // Start the animation loop!
+    animate();
+    resetTradeUI();
+});
