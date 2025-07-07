@@ -8,6 +8,26 @@
         /* Basic CSS to make the canvas fill the entire page */
         body { margin: 0; }
         canvas { display: block; }
+        /* Popup styles */
+        #completionPopup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(255, 255, 255, 0.5); /* Semi-transparent */
+            padding: 30px;
+            border: 2px solid #000;
+            border-radius: 10px;
+            text-align: center;
+            display: none; /* Hidden by default */
+            z-index: 1000;
+        }
+
+        #completionPopup button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            cursor: pointer;
+        }
     </style>
     <!-- 
       This importmap allows us to use bare module specifiers in our JavaScript.
@@ -26,7 +46,7 @@
 </head>
 <body>
     <div id="inventory" style="position:fixed; top:10px; left:10px; background:#fff; padding:5px 10px; border:1px solid #000; border-radius:5px;">
-        Meat: 0, Metal: 0
+        Meat: -/-, Lumber: -/-, Metal: -/-
     </div>
 
     <!-- Popup UI -->
@@ -56,20 +76,28 @@
         </div>
     </div>
 
-    <!-- The main entry point for our Three.js application -->
-    <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
-    <script>
-        function hideTradeUI() {
-            document.getElementById('popup').style.display = 'none';
-        }
-
-        function acceptTrade() {
-            executeTrade();
-        }
-
-        function rejectTrade() {
-            hideTradeUI();
-        }
-    </script>
+    <div id="completionPopup">
+        <h1>Victory!</h1>
+        <!-- <button id="restartBtn">Restart</button> -->
+    </div>
 </body>
+<!-- The main entry point for our Three.js application -->
+<script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
+<script>
+    function hideTradeUI() {
+        document.getElementById('popup').style.display = 'none';
+    }
+
+    function acceptTrade() {
+        executeTrade();
+    }
+
+    function rejectTrade() {
+        hideTradeUI();
+    }
+
+    function doNextLevel() {
+        nextLevel();
+    }
+</script>
 </html>

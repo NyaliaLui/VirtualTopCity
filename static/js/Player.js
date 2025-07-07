@@ -99,6 +99,14 @@ class InputController {
     }
   }
 
+  isMouseDown() {
+    return this.current_.leftButton || this.current_.rightButton;
+  }
+
+  isMouseUp() {
+    return !this.isMouseDown();
+  }
+
   onKeyDown_(e) {
     this.keys_[e.keyCode] = true;
   }
@@ -165,19 +173,25 @@ class FirstPersonCamera {
     this.input_.update(timeElapsedS);
   }
 
+  isCurrentAnimation(animation) {
+    return this.currentAction_ == animation;
+  }
+
   updateAnimation_(timeElapsedS) {
-        const directionPressed = this.input_.key(KEYS.w) || this.input_.key(KEYS.s) || this.input_.key(KEYS.a) || this.input_.key(KEYS.d);
+        let directionPressed = this.input_.key(KEYS.w) || this.input_.key(KEYS.s) || this.input_.key(KEYS.a) || this.input_.key(KEYS.d);
 
         let play = '';
         if (directionPressed) {
             play = ACTIONS.walk;
+        } else if (this.input_.isMouseDown()) {
+            play = ACTIONS.hit;
         } else {
             play = ACTIONS.idle;
         }
 
         if (this.currentAction_ != play) {
-            const toPlay = this.animationsMap_.get(play);
-            const current = this.animationsMap_.get(this.currentAction_);
+            let toPlay = this.animationsMap_.get(play);
+            let current = this.animationsMap_.get(this.currentAction_);
 
             current.fadeOut(this.FADEDURATION);
             toPlay.reset().fadeIn(this.FADEDURATION).play();
@@ -208,8 +222,8 @@ class FirstPersonCamera {
     let closest = forward;
     const result = new THREE.Vector3();
     const ray = new THREE.Ray(this.translation_, dir);
-    this.world_.objectBounds.forEach((bounds) => {
-        if (ray.intersectBox(bounds, result)) {
+    this.world_.objectBounds.forEach((obj) => {
+        if (ray.intersectBox(obj.boundingBox, result)) {
             if (result.distanceTo(ray.origin) < closest.distanceTo(ray.origin)) {
                 closest = result.clone();
             }
@@ -255,9 +269,14 @@ class FirstPersonCamera {
     }
   }
 
-  updateRotation_(timeElapsedS) {
-    const xh = this.input_.current_.mouseXDelta / window.innerWidth;
-    const yh = this.input_.current_.mouseYDelta / window.innerHeight;
+  updateRotation_(timeElapsedS, xh=null, yh=null) {
+    if (!xh) {
+      xh = this.input_.current_.mouseXDelta / window.innerWidth;
+    }
+
+    if (!yh) {
+      yh = this.input_.current_.mouseYDelta / window.innerHeight;
+    }
 
     this.phi_ += -xh * this.phiSpeed_;
     this.theta_ = clamp(this.theta_ + -yh * this.thetaSpeed_, -Math.PI / 3, Math.PI / 3);
@@ -273,6 +292,24 @@ class FirstPersonCamera {
 
     this.rotation_.copy(q);
   }
+
+  focusOnModel(model, timeElapsedS) {
+    // Get the model's world position
+    const box = new THREE.Box3().setFromObject(model);
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+
+    // Move the camera in front of the model (along the Z axis)
+    let zprime = center.z + (this.world_.minDistance * 2);
+    this.translation_.set(center.x, HEIGHTS.camera, zprime);
+    this.updateTranslation_(timeElapsedS);
+    this.updateRotation_(timeElapsedS, center.x, zprime);
+
+    // Make the camera look at the model's center
+    this.camera_.lookAt(center);
+
+    this.updateCamera_(timeElapsedS);
+  }
 }
 
 
@@ -282,7 +319,9 @@ class Player {
         this.camera_ = camera;
         this.world_ = world;
         this.fpsCamera_ = undefined;
-        this.inventory = { meat: 10, metal: 0 };
+        this.inventory = { meat: 15, lumber: 0, metal: 0 };
+        this.hitCooldown = false;
+        this.hitCooldownS = 0.5 * 1000;
         this.initializeModel_();
     }
 
@@ -308,16 +347,59 @@ class Player {
         });
     }
 
-    updateHUD() {
-        document.getElementById('inventory').innerText = `Meat: ${this.inventory.meat}, Metal: ${this.inventory.metal}`;;
-    }
-
     update(timeElapsedS) {
         if (this.fpsCamera_) {
             this.fpsCamera_.update(timeElapsedS);
         }
+    }
 
-        this.updateHUD();
+    checkCollisions() {
+        if (this.hitCooldown || !this.fpsCamera_ || !this.fpsCamera_.isCurrentAnimation(ACTIONS.hit)) {
+            return;
+        }
+
+        let playerBox = new THREE.Box3().setFromObject(this.model());
+        let removableIndexes = [];
+        let objHit = false;
+        this.world_.objectBounds.forEach((obj) => {
+            if (playerBox.intersectsBox(obj.boundingBox) && 'health' in obj) {
+                // At this point, obj should be either an Animal or Tree since they
+                // are the only ones with a health property.
+                console.log(`Player ${this.model().name} hit ${obj.name}!`);
+                obj.health -= 1;
+
+                if (obj.health <= 0) {
+                  console.log(`${obj.name} is destroyed!`);
+                  obj.editInventory(this.inventory);
+                  this.scene_.remove(obj.model);
+                  let animalIndex = this.world_.animals.indexOf(obj);
+                  if (animalIndex > -1) {
+                    this.world_.animals.splice(animalIndex, 1);
+                  }
+                  removableIndexes.push(obj);
+                }
+
+                objHit = true;
+            }
+        }, this);
+
+        removableIndexes.forEach((toRemove) => {
+            this.world_.objectBounds.splice(toRemove, 1);
+        }, this);
+
+        // If at least one object was hit, start cooldown
+        if (objHit) {
+            this.startHitCooldown();
+        }
+
+        return objHit;
+    }
+
+    startHitCooldown() {
+        this.hitCooldown = true;
+        setTimeout(() => {
+            this.hitCooldown = false;
+        }, this.hitCooldownS);
     }
 
     model() {
@@ -326,5 +408,13 @@ class Player {
         }
 
         return this.fpsCamera_.model_;
+    }
+
+    focusOnModel(model, timeElapsedS) {
+        if (!this.fpsCamera_) {
+            return;
+        }
+
+        this.fpsCamera_.focusOnModel(model, timeElapsedS);
     }
 }

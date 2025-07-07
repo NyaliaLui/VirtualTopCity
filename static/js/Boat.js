@@ -14,9 +14,10 @@ class Boat {
         this.position_ = position;
         this.scene_ = scene;
         this.model = undefined;
-        let tradeOffer = generateTrade();
-        this.meatWanted = tradeOffer[0];
-        this.metalOffered = tradeOffer[1];
+        this.boundingBox = new THREE.Box3();
+        // let tradeOffer = generateTrade();
+        this.meatWanted = 5;
+        this.metalOffered = 100;
     }
 
     loadModel() {
@@ -28,7 +29,7 @@ class Boat {
                 this.model.position.copy(this.position_);
                 this.model.rotation.y = -Math.PI / 2;
                 this.scene_.add(this.model);
-                console.log(`boat pos ${this.model.position.x}, ${this.model.position.y}, ${this.model.position.z}`);
+                this.boundingBox.setFromObject(this.model);
 
                 resolve(this);
             }, undefined, (err) => {
@@ -40,7 +41,7 @@ class Boat {
     update(timeElapsedS) {}
 };
 
-async function makeBoat(name, glbPath, groundDist, scene) {
+function makeBoat(name, glbPath, groundDist, scene) {
     const boat = new Boat(name, glbPath, new THREE.Vector3(0, groundDist, gameBounds.left - 43), scene);
     return boat.loadModel();
 }

@@ -13,7 +13,10 @@ class Tree {
         this.position_ = position;
         this.scene_ = scene;
         this.model = undefined;
-        this.lumber = getRandomInt(resourceRange.lumber.min, resourceRange.lumber.max+1);
+        this.boundingBox = new THREE.Box3();
+        // this.lumber = getRandomInt(resourceRange.lumber.min, resourceRange.lumber.max+1);
+        this.lumber = 2;
+        this.health = 3;
     }
 
     loadModel() {
@@ -26,6 +29,7 @@ class Tree {
                 this.model.position.copy(this.position_);
                 this.model.rotation.y = getRandomRotation();
                 this.scene_.add(this.model);
+                this.boundingBox.setFromObject(this.model);
 
                 resolve(this);
             }, undefined, (err) => {
@@ -35,9 +39,13 @@ class Tree {
     }
 
     update(timeElapsedS) {}
+
+    editInventory(inventory) {
+        inventory.lumber += this.lumber;
+    }
 };
 
-async function makeTree(name, glbPath, scaleV3, groundDist, scene, world) {
+function makeTree(name, glbPath, scaleV3, groundDist, scene, world) {
     let pos = makePosition(world.animals, world.minDistance);
     pos.y = groundDist;
     const tree = new Tree(name, glbPath, scaleV3, pos, scene);

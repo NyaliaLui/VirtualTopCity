@@ -11,9 +11,11 @@ export {
     getRandomInt,
     getRandomRotation,
     distanceWithin,
-    addBox,
     makePosition,
-    generateTrade
+    generateTrade,
+    lvlCompletePopup,
+    updateHUD,
+    disposeScene
 };
 
 const mapDims = {width: 500, height: 500};
@@ -44,12 +46,6 @@ function distanceWithin(src, dst, dist) {
     return distance <= dist;
 }
 
-function addBox(mesh, arr) {
-    const b = new THREE.Box3();
-    b.setFromObject(mesh);
-    arr.push(b);
-}
-
 function makePosition(existingPositions, minDistance) {
     let temp = new THREE.Object3D();
     let isOverlapping;
@@ -71,4 +67,35 @@ function generateTrade() {
     let meatCount = getRandomInt(resourceRange.meat.min, resourceRange.meat.max);
     let metalCount = getRandomInt(resourceRange.metal.min, resourceRange.metal.max);
     return [meatCount, metalCount];
+}
+
+function lvlCompletePopup(display) {
+    document.getElementById('completionPopup').style.display = display;
+}
+
+function updateHUD(player, winCondition) {
+    let inventoryElement = document.getElementById('inventory');
+    inventoryElement.innerText = `Meat: ${player.inventory.meat}/${winCondition.meat}, Lumber: ${player.inventory.lumber}/${winCondition.lumber}, Metal: ${player.inventory.metal}/${winCondition.metal}`;
+
+    // Flash effect
+    inventoryElement.style.transition = 'background-color 0.1s';
+    inventoryElement.style.backgroundColor = 'chartreuse';
+
+    setTimeout(() => {
+        inventoryElement.style.backgroundColor = 'white';
+    }, 100);
+}
+
+function disposeScene(rootObject) {
+    rootObject.traverse(object => {
+        if (object.geometry) object.geometry.dispose();
+        if (object.material) {
+            if (Array.isArray(object.material)) {
+                object.material.forEach(material => material.dispose());
+            } else {
+                object.material.dispose();
+            }
+        }
+        if (object.texture) object.texture.dispose();
+    });
 }
