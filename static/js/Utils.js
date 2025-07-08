@@ -26,7 +26,7 @@ const cityBounds = {right: gameBounds.right, left: playBounds.right, top: gameBo
 const posTrees = {left: playBounds.left - 5, right: playBounds.right + 5, top: playBounds.top, bottom: playBounds.bottom};
 const resourceRange = {
     meat: { min: 1, max: 5},
-    lumber: { min: 1, max: 5},
+    lumber: { min: 3, max: 5},
     metal: { min: 1, max: 3}
 };
 

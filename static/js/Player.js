@@ -301,7 +301,8 @@ class FirstPersonCamera {
 
     // Move the camera in front of the model (along the Z axis)
     let zprime = center.z + (this.world_.minDistance * 2);
-    this.translation_.set(center.x, HEIGHTS.camera, zprime);
+    this.translation_.x = center.x;
+    this.translation_.z = zprime;
     this.updateTranslation_(timeElapsedS);
     this.updateRotation_(timeElapsedS, center.x, zprime);
 

@@ -126,6 +126,10 @@ document.addEventListener('keydown', (event) => {
         if (world.boat && distanceWithin(player.model(), world.boat.model, boatInteractionDist)) {
             showTradeUI(world.boat.meatWanted, world.boat.metalOffered);
         }
+    } else if (event.key === 'q') {
+        executeTrade();
+    } else if (event.key === 'e') {
+        hideTradeUI(); // Defined in index.html
     }
 }, false);
 

@@ -14,8 +14,7 @@ class Tree {
         this.scene_ = scene;
         this.model = undefined;
         this.boundingBox = new THREE.Box3();
-        // this.lumber = getRandomInt(resourceRange.lumber.min, resourceRange.lumber.max+1);
-        this.lumber = 2;
+        this.lumber = getRandomInt(resourceRange.lumber.min, resourceRange.lumber.max+1);
         this.health = 3;
     }
 
