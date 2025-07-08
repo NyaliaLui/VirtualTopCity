@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flask & Three.js with Import Map</title>
+    <style>
+        /* Basic CSS to make the canvas fill the entire page */
+        body { margin: 0; }
+        canvas { display: block; }
+        /* Popup styles */
+        #completionPopup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(255, 255, 255, 0.5); /* Semi-transparent */
+            padding: 30px;
+            border: 2px solid #000;
+            border-radius: 10px;
+            text-align: center;
+            display: none; /* Hidden by default */
+            z-index: 1000;
+        }
+
+        #completionPopup button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            cursor: pointer;
+        }
+    </style>
+    <!-- 
+      This importmap allows us to use bare module specifiers in our JavaScript.
+      It maps 'three' to the main Three.js module and 'three/addons/' to its
+      corresponding directory on the CDN. This is a modern way to handle
+      modules without a build step.
+    -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.177.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.177.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div id="inventory" style="position:fixed; top:10px; left:10px; background:#fff; padding:5px 10px; border:1px solid #000; border-radius:5px;">
+        Meat: -/-, Lumber: -/-, Metal: -/-
+    </div>
+
+    <!-- Popup UI -->
+    <div id="popup" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); 
+        width:400px; background:#fff; border:2px solid #000; border-radius:8px; padding:20px; flex-direction:column; gap:10px;">
+
+        <!-- Top Row -->
+        <div style="display:flex; justify-content:space-between;">
+            <img src="{{ url_for('static', filename='images/captain.png') }}" alt="Avatar" style="width:50px; height:50px; border-radius:50%;">
+            <button onclick="hideTradeUI()">X</button>
+        </div>
+
+        <!-- Middle Text -->
+        <div id="billboard" style="text-align:center; margin-top:10px; font-size:16px;">
+        </div>
+
+        <!-- Bottom Row -->
+        <div style="display:flex; justify-content:space-between; margin-top:10px;">
+            <div id="meatWanted"></div>
+            <div id="metalOffered"></div>
+        </div>
+
+        <!-- Buttons -->
+        <div id="decision-btns" style="display:flex; justify-content:space-evenly; margin-top:10px;">
+            <button onclick="acceptTrade()">Accept</button>
+            <button onclick="rejectTrade()">Reject</button>
+        </div>
+    </div>
+
+    <div id="completionPopup">
+        <h1>Victory!</h1>
+        <!-- <button id="restartBtn">Restart</button> -->
+    </div>
+</body>
+<!-- The main entry point for our Three.js application -->
+<script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
+<script>
+    function hideTradeUI() {
+        document.getElementById('popup').style.display = 'none';
+    }
+
+    function acceptTrade() {
+        executeTrade();
+    }
+
+    function rejectTrade() {
+        hideTradeUI();
+    }
+
+    function doNextLevel() {
+        nextLevel();
+    }
+</script>
+</html>
